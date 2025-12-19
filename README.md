@@ -47,8 +47,9 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
     This command will build the backend and frontend images and start the services, including the PostgreSQL database.
 
 3.  Access the services:
-    -   **Frontend UI**: Open [http://localhost:3000](http://localhost:3000) in your browser.
-    -   **Backend API Docs**: Open [http://localhost:8001/docs](http://localhost:8001/docs) for the interactive Swagger UI.
+3.  Access the services:
+    -   **LBS UI & API**: Open [http://localhost:8300](http://localhost:8300) in your browser.
+    -   **API Documentation**: Open [http://localhost:8300/docs](http://localhost:8300/docs) for the interactive Swagger UI.
 
 ## Project Structure
 
@@ -56,6 +57,43 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 -   `ui/`: Frontend source code (React App).
 -   `data/`: Data storage/persistence.
 -   `docker-compose.yml`: Service definitions.
+
+## Authentication & Security
+
+LBS uses an API Key-centric authentication system.
+
+### Auth Methods (Priority Order)
+1. **X-API-KEY Header**: Primary method. Resolves user identity, client ID, and scopes.
+2. **JWT Bearer Token**: Secondary method for browser/UI sessions.
+3. **Dev Fallback**: Used only if `LBS_REQUIRE_API_KEY=false`. Uses `LBS_DEFAULT_USER_ID`.
+
+### Setup API Key (Manual/Dev)
+If you need to manually add an API key (hashed) to the database for a user:
+```python
+import hashlib
+key = "your-secret-key"
+key_hash = hashlib.sha256(key.encode()).hexdigest()
+# Insert into 'api_keys' table with user_id
+```
+
+### Usage Examples (Curl)
+```bash
+# Using API Key
+curl -H "X-API-KEY: your-secret-key" http://localhost:8100/api/lbs/tasks
+
+# Using JWT
+curl -H "Authorization: Bearer <token>" http://localhost:8100/api/lbs/tasks
+```
+
+### Configuration (Environment Variables)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LBS_ENV` | `dev` | `dev` or `prod`. `prod` enforces strict security. |
+| `LBS_REQUIRE_API_KEY` | `false` | If `true`, requires API key or JWT. If `false`, falls back to default user. |
+| `LBS_DEFAULT_USER_ID` | `0000...` | UUID used for dev fallback. |
+| `LBS_BIND_HOST` | `127.0.0.1` | Host to bind uvicorn. |
+| `BACKEND_PORT` | `8100` | Port for the backend service. |
 
 ## Development
 

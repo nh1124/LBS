@@ -4,12 +4,22 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "LBS Microservice"
     API_V1_STR: str = "/api/lbs"
-    SECRET_KEY: str = os.getenv("LBS_SECRET_KEY", "your-secret-key-here")
+    LBS_SECRET_KEY: str = "your-secret-key-here"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     
+    # Server Configuration
+    LBS_ENV: str = "dev"
+    LBS_BIND_HOST: str = "127.0.0.1"
+    BACKEND_PORT: int = 8100
+    
+    # Auth & Security
+    LBS_REQUIRE_API_KEY: bool = False
+    LBS_DEFAULT_USER_ID: str = "00000000-0000-0000-0000-000000000000"
+    LBS_ENABLE_DEV_HEADER_AUTH: bool = False
+    LBS_CORS_ALLOW_ORIGINS: str = "*"
+    
     # Database
-    # Use environment variable DATABASE_URL for PostgreSQL in Docker
     DATABASE_URL: str = "sqlite:///./lbs.db"
     
     # LBS Defaults
@@ -18,7 +28,10 @@ class Settings(BaseSettings):
     DEFAULT_CAP: float = 8.0
     DEFAULT_SWITCH_COST: float = 0.5
 
-    class Config:
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True,
+        "extra": "ignore"
+    }
 
 settings = Settings()

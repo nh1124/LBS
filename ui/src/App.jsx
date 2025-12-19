@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  ListTodo, 
-  Settings, 
-  AlertTriangle, 
-  Plus, 
+import {
+  LayoutDashboard,
+  ListTodo,
+  Settings,
+  AlertTriangle,
+  Plus,
   Calendar,
   Activity,
   History,
@@ -15,11 +15,10 @@ import Dashboard from './components/Dashboard';
 import TaskManager from './components/TaskManager';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
-  <div 
+  <div
     onClick={onClick}
-    className={`flex items-center gap-4 p-4 cursor-pointer transition-all ${
-      active ? 'bg-white/10 text-white rounded-xl' : 'text-slate-400 hover:text-white hover:bg-white/5 rounded-xl'
-    }`}
+    className={`flex items-center gap-4 p-4 cursor-pointer transition-all ${active ? 'bg-white/10 text-white rounded-xl' : 'text-slate-400 hover:text-white hover:bg-white/5 rounded-xl'
+      }`}
   >
     <Icon size={20} />
     <span className="font-medium">{label}</span>
@@ -45,29 +44,29 @@ function App() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white">L</div>
           <h1 className="text-xl font-bold gradient-text">LBS Control</h1>
         </div>
-        
+
         <nav className="flex flex-col gap-2 flex-grow">
-          <SidebarItem 
-            icon={LayoutDashboard} 
-            label="Dashboard" 
-            active={activeTab === 'dashboard'} 
-            onClick={() => setActiveTab('dashboard')} 
+          <SidebarItem
+            icon={LayoutDashboard}
+            label="Dashboard"
+            active={activeTab === 'dashboard'}
+            onClick={() => setActiveTab('dashboard')}
           />
-          <SidebarItem 
-            icon={ListTodo} 
-            label="Tasks" 
-            active={activeTab === 'tasks'} 
-            onClick={() => setActiveTab('tasks')} 
+          <SidebarItem
+            icon={ListTodo}
+            label="Tasks"
+            active={activeTab === 'tasks'}
+            onClick={() => setActiveTab('tasks')}
           />
-          <SidebarItem 
-            icon={Settings} 
-            label="Settings" 
-            active={activeTab === 'settings'} 
-            onClick={() => setActiveTab('settings')} 
+          <SidebarItem
+            icon={Settings}
+            label="Settings"
+            active={activeTab === 'settings'}
+            onClick={() => setActiveTab('settings')}
           />
         </nav>
 
-        <div 
+        <div
           onClick={() => setIsAuthOpen(true)}
           className="p-4 glass-card flex flex-col gap-2 cursor-pointer hover:border-white/20 transition-all"
         >
@@ -84,18 +83,18 @@ function App() {
         {activeTab === 'dashboard' && <Dashboard apiKey={apiKey} userId={userId} />}
         {activeTab === 'tasks' && <TaskManager apiKey={apiKey} userId={userId} />}
         {activeTab === 'settings' && (
-           <div className="max-w-2xl mx-auto">
-             <h2 className="text-2xl font-bold mb-8">System Configuration</h2>
-             <div className="glass-card p-6 flex flex-col gap-6">
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Microservice Endpoint</label>
-                  <input className="w-full" disabled value="http://localhost:8001/api/lbs" />
-                </div>
-                <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-sm text-purple-200">
-                  Default configurations (ALPHA, BETA, CAP) are loaded from the backend per user session.
-                </div>
-             </div>
-           </div>
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold mb-8">System Configuration</h2>
+            <div className="glass-card p-6 flex flex-col gap-6">
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Microservice Endpoint</label>
+                <input className="w-full" disabled value={`${import.meta.env.VITE_API_BASE_URL || '/api/lbs'}`} />
+              </div>
+              <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-sm text-purple-200">
+                Default configurations (ALPHA, BETA, CAP) are loaded from the backend per user session.
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -107,24 +106,24 @@ function App() {
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">X-API-Key</label>
-                <input 
-                  className="w-full" 
-                  placeholder="Enter API Key" 
-                  value={apiKey} 
+                <input
+                  className="w-full"
+                  placeholder="Enter API Key"
+                  value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />
               </div>
               <div className="flex items-center gap-4 py-2 text-slate-500 text-xs">
-                 <div className="flex-grow h-[1px] bg-white/5"></div>
-                 <span>OR</span>
-                 <div className="flex-grow h-[1px] bg-white/5"></div>
+                <div className="flex-grow h-[1px] bg-white/5"></div>
+                <span>OR</span>
+                <div className="flex-grow h-[1px] bg-white/5"></div>
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">X-User-ID (Dev Mode)</label>
-                <input 
-                  className="w-full" 
-                  placeholder="Enter User UUID" 
-                  value={userId} 
+                <input
+                  className="w-full"
+                  placeholder="Enter User UUID"
+                  value={userId}
                   onChange={(e) => setUserId(e.target.value)}
                 />
               </div>

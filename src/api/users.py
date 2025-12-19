@@ -4,6 +4,7 @@ import uuid
 
 from ..models.database import get_db, User
 from .schemas import UserCreate, UserResponse
+from ..auth import resolve_identity, Identity
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -23,6 +24,27 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-@router.get("/me", response_model=UserResponse)
-def get_user_me(user: User = Depends(get_db)): # This will be wrapped by auth in main or specific deps
-    return user
+@router.get("/me")
+def get_user_me(
+    db: Session = Depends(get_db),
+    identity: Identity = Depends(resolve_identity)
+):
+    user = db.query(User).filter(User.user_id == identity.user_id).first()
+    if not user:
+        # If identity resolved but user not in DB (e.g. dev fallback with non-existent UUID)
+        return {
+            "user_id": identity.user_id,
+            "client_id": identity.client_id,
+            "auth_method": identity.auth_method,
+            "warnings": identity.warnings,
+            "error": "User record not found"
+        }
+    
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "name": user.name,
+        "client_id": identity.client_id,
+        "auth_method": identity.auth_method,
+        "warnings": identity.warnings
+    }

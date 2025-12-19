@@ -54,7 +54,7 @@ const TaskManager = ({ apiKey, userId }) => {
     });
 
     const api = axios.create({
-        baseURL: 'http://localhost:8001/api/lbs',
+        baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8300/api/lbs',
         headers: { 'X-API-Key': apiKey, 'X-User-ID': userId }
     });
 

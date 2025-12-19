@@ -25,7 +25,7 @@ const Dashboard = ({ apiKey, userId }) => {
     const [error, setError] = useState(null);
 
     const api = axios.create({
-        baseURL: 'http://localhost:8001/api/lbs',
+        baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8300/api/lbs',
         headers: {
             'X-API-Key': apiKey,
             'X-User-ID': userId
@@ -51,7 +51,7 @@ const Dashboard = ({ apiKey, userId }) => {
     }, [apiKey, userId]);
 
     if (loading) return <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">Initializing Dashboard...</div>;
-    if (error) return <div className="text-red-400 p-8 glass-card">Error: {error}. Make sure backend is running on port 8001.</div>;
+    if (error) return <div className="text-red-400 p-8 glass-card">Error: {error}. Make sure backend is running on the configured port.</div>;
 
     const getLevelColor = (level) => {
         switch (level) {
