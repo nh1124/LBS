@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
     Plus, Edit2, Trash2, Calendar, CheckCircle2, XCircle,
-    Menu, Filter, Search, Tag, Clock, ChevronDown
+    Menu, Filter, Search, Tag, Clock, ChevronDown, Upload
 } from 'lucide-react';
 
 const TaskCard = ({ task, onEdit, onDelete }) => {
@@ -41,11 +41,12 @@ const TaskCard = ({ task, onEdit, onDelete }) => {
     );
 };
 
-const TaskManager = ({ apiKey, userId }) => {
+const TaskManager = ({ apiKey }) => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -54,8 +55,8 @@ const TaskManager = ({ apiKey, userId }) => {
     });
 
     const api = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8300/api/lbs',
-        headers: { 'X-API-Key': apiKey, 'X-User-ID': userId }
+        baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
+        headers: { 'X-API-Key': apiKey }
     });
 
     const fetchTasks = async () => {
@@ -69,7 +70,7 @@ const TaskManager = ({ apiKey, userId }) => {
         }
     };
 
-    useEffect(() => { if (apiKey || userId) fetchTasks(); }, [apiKey, userId]);
+    useEffect(() => { if (apiKey) fetchTasks(); }, [apiKey]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -95,8 +96,34 @@ const TaskManager = ({ apiKey, userId }) => {
 
     const handleDelete = async (id) => {
         if (window.confirm("Delete this task?")) {
-            await api.delete(`/tasks/${id}`);
+            try {
+                await api.delete(`/tasks/${id}`);
+                fetchTasks();
+            } catch (err) {
+                alert("Error deleting task: " + (err.response?.data?.detail || err.message));
+            }
+        }
+    };
+
+    const handleCsvUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setIsUploading(true);
+        try {
+            await api.post('/tasks/upload-csv', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert("Tasks imported successfully!");
             fetchTasks();
+        } catch (err) {
+            alert("Error importing CSV: " + (err.response?.data?.detail || err.message));
+        } finally {
+            setIsUploading(false);
+            e.target.value = ''; // Reset input
         }
     };
 
@@ -107,12 +134,19 @@ const TaskManager = ({ apiKey, userId }) => {
                     <h2 className="text-3xl font-bold mb-1">Task Inventory</h2>
                     <p className="text-slate-400">Manage master tasks and scheduling rules.</p>
                 </div>
-                <button
-                    onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-                    className="primary flex items-center gap-2"
-                >
-                    <Plus size={20} /> Create Task
-                </button>
+                <div className="flex gap-3">
+                    <label className={`p-3 px-5 glass-card flex items-center gap-2 text-sm font-bold cursor-pointer hover:bg-white/5 transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <Upload size={18} className="text-blue-400" />
+                        <span>{isUploading ? 'Importing...' : 'Import CSV'}</span>
+                        <input type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+                    </label>
+                    <button
+                        onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
+                        className="primary flex items-center gap-2"
+                    >
+                        <Plus size={20} /> Create Task
+                    </button>
+                </div>
             </header>
 
             <div className="flex gap-4 mb-4">

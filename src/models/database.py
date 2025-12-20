@@ -52,7 +52,7 @@ class TaskException(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
-    task_id = Column(String, ForeignKey("tasks.task_id"), nullable=False)
+    task_id = Column(String, ForeignKey("tasks.task_id", ondelete="CASCADE"), nullable=False)
     target_date = Column(Date, nullable=False)
     exception_type = Column(String, nullable=False) # SKIP, OVERRIDE_LOAD, FORCE_DO
     override_load_value = Column(Float, nullable=True)
@@ -66,7 +66,7 @@ class LBSDailyCache(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
     target_date = Column(Date, nullable=False, index=True)
-    task_id = Column(String, ForeignKey("tasks.task_id"), nullable=False)
+    task_id = Column(String, ForeignKey("tasks.task_id", ondelete="CASCADE"), nullable=False)
     calculated_load = Column(Float, nullable=False)
     status = Column(String, default="planned")
     is_overflow = Column(Boolean, default=False)

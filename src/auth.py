@@ -75,6 +75,9 @@ async def resolve_identity(
         except JWTError:
             pass # Fall through to error or dev fallback
 
+        except JWTError:
+            pass # Fall through to error or dev fallback
+
     # 3. Dev Fallback
     if not settings.LBS_REQUIRE_API_KEY:
         logger.warning(f"DEV FALLBACK USED: Using default user_id {settings.LBS_DEFAULT_USER_ID}")

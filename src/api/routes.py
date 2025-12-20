@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from datetime import date, timedelta, datetime
 from typing import List, Optional
 import uuid
+import csv
+import io
 
 from ..models.database import get_db, Task, TaskException, User
 from ..models.user import User as DBUser
@@ -110,6 +112,79 @@ def update_task(
     engine.expand_tasks(expand_start, expand_end)
     
     return db_task
+
+@router.post("/tasks/upload-csv")
+def upload_tasks_csv(
+    file: UploadFile = File(...),
+    identity: Identity = Depends(resolve_identity),
+    db: Session = Depends(get_db)
+):
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+    
+    contents = file.file.read().decode('utf-8')
+    reader = csv.DictReader(io.StringIO(contents))
+    
+    tasks_to_create = []
+    engine = LBSEngine(db, identity.user_id)
+    
+    # We'll use a wide range for expansion if any task is created
+    min_start = date.today()
+    max_end = date.today() + timedelta(days=90)
+
+    for row in reader:
+        try:
+            # Basic validation/conversion
+            task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
+            
+            # Helper to parse boolean from CSV
+            def to_bool(val):
+                if not val: return False
+                return str(val).lower() in ('true', '1', 'yes', 'y', 't')
+
+            db_task = Task(
+                task_id=task_id,
+                user_id=identity.user_id,
+                task_name=row.get('task_name', 'Untitled Task'),
+                context=row.get('context', 'work').lower(),
+                base_load_score=float(row.get('base_load_score', 2.0)),
+                active=to_bool(row.get('active', 'true')),
+                rule_type=row.get('rule_type', 'WEEKLY'),
+                due_date=date.fromisoformat(row['due_date']) if row.get('due_date') and row['due_date'].strip() else None,
+                mon=to_bool(row.get('mon', 'false')),
+                tue=to_bool(row.get('tue', 'false')),
+                wed=to_bool(row.get('wed', 'false')),
+                thu=to_bool(row.get('thu', 'false')),
+                fri=to_bool(row.get('fri', 'false')),
+                sat=to_bool(row.get('sat', 'false')),
+                sun=to_bool(row.get('sun', 'false')),
+                interval_days=int(row['interval_days']) if row.get('interval_days') and row['interval_days'].strip() else None,
+                anchor_date=date.fromisoformat(row['anchor_date']) if row.get('anchor_date') and row['anchor_date'].strip() else None,
+                month_day=int(row['month_day']) if row.get('month_day') and row['month_day'].strip() else None,
+                nth_in_month=int(row['nth_in_month']) if row.get('nth_in_month') and row['nth_in_month'].strip() else None,
+                weekday_mon1=int(row['weekday_mon1']) if row.get('weekday_mon1') and row['weekday_mon1'].strip() else None,
+                start_date=date.fromisoformat(row['start_date']) if row.get('start_date') and row['start_date'].strip() else None,
+                end_date=date.fromisoformat(row['end_date']) if row.get('end_date') and row['end_date'].strip() else None,
+                notes=row.get('notes')
+            )
+            
+            if db_task.start_date and db_task.start_date < min_start: min_start = db_task.start_date
+            if db_task.end_date and db_task.end_date > max_end: max_end = db_task.end_date
+
+            tasks_to_create.append(db_task)
+        except Exception as e:
+            # Log error and continue
+            print(f"Error parsing row: {e}")
+            continue
+
+    if tasks_to_create:
+        db.add_all(tasks_to_create)
+        db.commit()
+        
+        # Trigger expansion for all new tasks in the relevant range
+        engine.expand_tasks(min_start, max_end)
+        
+    return {"message": f"Successfully imported {len(tasks_to_create)} tasks"}
 
 @router.delete("/tasks/{task_id}")
 def delete_task(

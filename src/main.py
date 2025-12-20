@@ -6,7 +6,7 @@ import os
 import logging
 import sys
 from .api import routes, users
-from .models.database import engine, Base
+from .models.database import engine, Base, SessionLocal, User
 from .config import settings
 
 # Create tables
@@ -46,6 +46,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_populate():
+    # Ensure default user exists if LBS_REQUIRE_API_KEY is false
+    if not settings.LBS_REQUIRE_API_KEY:
+        db = SessionLocal()
+        try:
+            default_user = db.query(User).filter(User.user_id == settings.LBS_DEFAULT_USER_ID).first()
+            if not default_user:
+                logger.info(f"Creating default user {settings.LBS_DEFAULT_USER_ID} for dev mode")
+                user = User(
+                    user_id=settings.LBS_DEFAULT_USER_ID,
+                    email="dev-fallback@lbs.internal",
+                    name="Default Dev User",
+                    api_key="DEV-FALLBACK-KEY"
+                )
+                db.add(user)
+                db.commit()
+        finally:
+            db.close()
 
 # Include routers
 app.include_router(users.router, prefix=settings.API_V1_STR)

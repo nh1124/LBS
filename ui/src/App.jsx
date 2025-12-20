@@ -11,6 +11,7 @@ import {
   User as UserIcon,
   Key
 } from 'lucide-react';
+import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import TaskManager from './components/TaskManager';
 
@@ -28,13 +29,35 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [apiKey, setApiKey] = useState(localStorage.getItem('lbs_api_key') || '');
-  const [userId, setUserId] = useState(localStorage.getItem('lbs_user_id') || '');
-  const [isAuthOpen, setIsAuthOpen] = useState(!apiKey && !userId);
+  const [isAuthOpen, setIsAuthOpen] = useState(!apiKey);
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+
+  // Registration Form State
+  const [regData, setRegData] = useState({ name: '', email: '' });
+  const [regError, setRegError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('lbs_api_key', apiKey);
-    localStorage.setItem('lbs_user_id', userId);
-  }, [apiKey, userId]);
+  }, [apiKey]);
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setIsRegistering(true);
+    setRegError('');
+    try {
+      const resp = await axios.post(`${import.meta.env.VITE_API_BASE_URL || '/api/lbs'}/users/`, regData);
+      const newKey = resp.data.api_key;
+      setApiKey(newKey);
+      setIsRegisterOpen(false);
+      setIsAuthOpen(false);
+      alert("Registration successful! Your API key has been set automatically.");
+    } catch (err) {
+      setRegError(err.response?.data?.detail || err.message);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#0a0a0c]">
@@ -80,8 +103,8 @@ function App() {
 
       {/* Main Content */}
       <div className="flex-grow overflow-y-auto p-10">
-        {activeTab === 'dashboard' && <Dashboard apiKey={apiKey} userId={userId} />}
-        {activeTab === 'tasks' && <TaskManager apiKey={apiKey} userId={userId} />}
+        {activeTab === 'dashboard' && <Dashboard apiKey={apiKey} />}
+        {activeTab === 'tasks' && <TaskManager apiKey={apiKey} />}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold mb-8">System Configuration</h2>
@@ -102,7 +125,10 @@ function App() {
       {isAuthOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="glass-card p-8 w-[400px] flex flex-col gap-6">
-            <h2 className="text-xl font-bold">LBS Authentication</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">LBS Authentication</h2>
+              <button onClick={() => setIsAuthOpen(false)} className="text-slate-500 hover:text-white">&times;</button>
+            </div>
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">X-API-Key</label>
@@ -113,26 +139,75 @@ function App() {
                   onChange={(e) => setApiKey(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-4 py-2 text-slate-500 text-xs">
-                <div className="flex-grow h-[1px] bg-white/5"></div>
-                <span>OR</span>
-                <div className="flex-grow h-[1px] bg-white/5"></div>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">X-User-ID (Dev Mode)</label>
-                <input
-                  className="w-full"
-                  placeholder="Enter User UUID"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                />
-              </div>
             </div>
-            <button className="primary w-full mt-2" onClick={() => setIsAuthOpen(false)}>Save & Start Manager</button>
+            <button className="primary w-full mt-2" onClick={() => setIsAuthOpen(false)}>Access Manager</button>
+
+            <div className="text-center py-2">
+              <span className="text-xs text-slate-500">Don't have a key? </span>
+              <button
+                onClick={() => { setIsAuthOpen(false); setIsRegisterOpen(true); }}
+                className="text-xs text-blue-400 hover:underline font-bold"
+              >
+                Create Account
+              </button>
+            </div>
+
             <p className="text-[10px] text-slate-500 text-center">
               Keys are stored locally in your browser.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Register Modal */}
+      {isRegisterOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <form onSubmit={handleRegister} className="glass-card p-8 w-[400px] flex flex-col gap-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">Create LBS Account</h2>
+              <button type="button" onClick={() => setIsRegisterOpen(false)} className="text-slate-500 hover:text-white">&times;</button>
+            </div>
+
+            {regError && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-lg">{regError}</div>}
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Full Name</label>
+                <input
+                  required
+                  className="w-full"
+                  placeholder="e.g. John Doe"
+                  value={regData.name}
+                  onChange={(e) => setRegData({ ...regData, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">Email Address</label>
+                <input
+                  required
+                  type="email"
+                  className="w-full"
+                  placeholder="name@example.com"
+                  value={regData.email}
+                  onChange={(e) => setRegData({ ...regData, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={isRegistering} className="primary w-full mt-2">
+              {isRegistering ? 'Creating Account...' : 'Generate API Key'}
+            </button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => { setIsRegisterOpen(false); setIsAuthOpen(true); }}
+                className="text-xs text-slate-500 hover:text-white"
+              >
+                Back to Login
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

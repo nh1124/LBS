@@ -5,7 +5,9 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 ## Features
 
 -   **Load Balancing Engine**: Core logic for task distribution and scaling.
--   **Maintenance UI**: A user-friendly interface to monitor system status and manage configurations.
+-   **CSV Task Import**: Support for bulk task registration from CSV files.
+-   **Integrated Registration UI**: Easy user onboarding directly through the browser.
+-   **Maintenance UI**: User-friendly glassmorphism interface for monitoring and management.
 -   **API**: RESTful API built with FastAPI for system interaction.
 -   **Database**: PostgreSQL for robust data persistence.
 
@@ -47,15 +49,14 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
     This command will build the backend and frontend images and start the services, including the PostgreSQL database.
 
 3.  Access the services:
-3.  Access the services:
-    -   **LBS UI & API**: Open [http://localhost:8300](http://localhost:8300) in your browser.
-    -   **API Documentation**: Open [http://localhost:8300/docs](http://localhost:8300/docs) for the interactive Swagger UI.
+    -   **LBS UI & API**: Open [http://localhost:8100](http://localhost:8100) in your browser.
+    -   **API Documentation**: Open [http://localhost:8100/docs](http://localhost:8100/docs) for the interactive Swagger UI.
 
 ## Project Structure
 
 -   `src/`: Backend source code (API, Services, Models).
 -   `ui/`: Frontend source code (React App).
--   `data/`: Data storage/persistence.
+-   `tasks_template.csv`: Template for bulk task import.
 -   `docker-compose.yml`: Service definitions.
 
 ## Authentication & Security
@@ -67,14 +68,11 @@ LBS uses an API Key-centric authentication system.
 2. **JWT Bearer Token**: Secondary method for browser/UI sessions.
 3. **Dev Fallback**: Used only if `LBS_REQUIRE_API_KEY=false`. Uses `LBS_DEFAULT_USER_ID`.
 
-### Setup API Key (Manual/Dev)
-If you need to manually add an API key (hashed) to the database for a user:
-```python
-import hashlib
-key = "your-secret-key"
-key_hash = hashlib.sha256(key.encode()).hexdigest()
-# Insert into 'api_keys' table with user_id
-```
+### User Setup
+The easiest way to get started is via the **Integrated Registration UI**:
+1. Open the UI at [http://localhost:8100](http://localhost:8100).
+2. Click **"Create Account"** in the authentication modal.
+3. Fill in your details to instantly generate your personal API Key.
 
 ### Usage Examples (Curl)
 ```bash

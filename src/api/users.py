@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 import uuid
 
 from ..models.database import get_db, User
+from ..models.user import APIKey
 from .schemas import UserCreate, UserResponse
-from ..auth import resolve_identity, Identity
+from ..auth import resolve_identity, Identity, hash_api_key
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -14,14 +15,27 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    plain_key = f"LBS-{uuid.uuid4().hex[:12].upper()}"
     new_user = User(
         email=user_in.email,
         name=user_in.name,
-        api_key=f"LBS-{uuid.uuid4().hex[:12].upper()}"
+        api_key=plain_key # Legacy column for simple lookups if needed
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Create the secure APIKey record
+    api_key_record = APIKey(
+        key_hash=hash_api_key(plain_key),
+        user_id=new_user.user_id,
+        is_active=True,
+        name="Default Key"
+    )
+    db.add(api_key_record)
+    db.commit()
+    
+    # Return user with plain_key so user can see it once
     return new_user
 
 @router.get("/me")

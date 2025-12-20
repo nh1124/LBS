@@ -19,16 +19,15 @@ const KPICard = ({ icon: Icon, label, value, subtext, color }) => (
     </div>
 );
 
-const Dashboard = ({ apiKey, userId }) => {
+const Dashboard = ({ apiKey }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const api = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8300/api/lbs',
+        baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
         headers: {
-            'X-API-Key': apiKey,
-            'X-User-ID': userId
+            'X-API-Key': apiKey
         }
     });
 
@@ -47,8 +46,8 @@ const Dashboard = ({ apiKey, userId }) => {
                 setLoading(false);
             }
         };
-        if (apiKey || userId) fetchData();
-    }, [apiKey, userId]);
+        if (apiKey) fetchData();
+    }, [apiKey]);
 
     if (loading) return <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">Initializing Dashboard...</div>;
     if (error) return <div className="text-red-400 p-8 glass-card">Error: {error}. Make sure backend is running on the configured port.</div>;
@@ -83,22 +82,21 @@ const Dashboard = ({ apiKey, userId }) => {
                 <KPICard
                     icon={ShieldCheck}
                     label="Recovery Rate"
-                    value={`${data.weekly_avg_load < 6 ? 'High' : 'Optimal'}`}
-                    subtext={`${data.recovery_day_percentage}% safe days`}
+                    value={`${(data.weekly?.average_load || 0) < 6 ? 'High' : 'Optimal'}`}
+                    subtext={`${data.weekly?.recovery_rate || 0}% safe days`}
                     color="emerald-500"
                 />
                 <KPICard
                     icon={Activity}
                     label="Weekly Avg"
-                    value={data.weekly_avg_load.toFixed(1)}
+                    value={(data.weekly?.average_load || 0).toFixed(1)}
                     subtext="units per day"
                     color="blue-500"
                 />
                 <KPICard
                     icon={AlertTriangle}
                     label="Overload Index"
-                    value={data.overload_consecutive_days}
-                    subtext="consecutive days"
+                    value={data.today?.is_overflow ? "High" : "Low"}
                     color="amber-500"
                 />
                 <KPICard
