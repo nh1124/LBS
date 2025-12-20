@@ -5,7 +5,7 @@ import {
     Menu, Filter, Search, Tag, Clock, ChevronDown, Upload
 } from 'lucide-react';
 
-const TaskCard = ({ task, onEdit, onDelete }) => {
+const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
     const getRuleLabel = (type) => {
         switch (type) {
             case 'WEEKLY': return 'Weekly';
@@ -17,7 +17,16 @@ const TaskCard = ({ task, onEdit, onDelete }) => {
     };
 
     return (
-        <div className="glass-card p-5 flex items-center gap-6 group hover:border-white/10 transition-all">
+        <div className={`glass-card p-5 flex items-center gap-6 group hover:border-white/10 transition-all ${isSelected ? 'border-blue-500/50 bg-blue-500/5' : ''}`}>
+            <div className="flex items-center">
+                <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => onSelect(task.task_id)}
+                    className="w-5 h-5 rounded border-white/10 bg-white/5 cursor-pointer accent-blue-500"
+                />
+            </div>
+
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${task.active ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-800 text-slate-500'}`}>
                 {task.base_load_score.toFixed(1)}
             </div>
@@ -47,6 +56,7 @@ const TaskManager = ({ apiKey }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [selectedTaskIds, setSelectedTaskIds] = useState([]);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -99,10 +109,30 @@ const TaskManager = ({ apiKey }) => {
             try {
                 await api.delete(`/tasks/${id}`);
                 fetchTasks();
+                setSelectedTaskIds(prev => prev.filter(tid => tid !== id));
             } catch (err) {
                 alert("Error deleting task: " + (err.response?.data?.detail || err.message));
             }
         }
+    };
+
+    const handleBulkDelete = async () => {
+        if (window.confirm(`Delete ${selectedTaskIds.length} tasks?`)) {
+            try {
+                await api.post('/tasks/bulk-delete', selectedTaskIds);
+                alert("Tasks deleted successfully");
+                setSelectedTaskIds([]);
+                fetchTasks();
+            } catch (err) {
+                alert("Error during bulk delete: " + (err.response?.data?.detail || err.message));
+            }
+        }
+    };
+
+    const toggleTaskSelection = (id) => {
+        setSelectedTaskIds(prev =>
+            prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id]
+        );
     };
 
     const handleCsvUpload = async (e) => {
@@ -135,6 +165,14 @@ const TaskManager = ({ apiKey }) => {
                     <p className="text-slate-400">Manage master tasks and scheduling rules.</p>
                 </div>
                 <div className="flex gap-3">
+                    {selectedTaskIds.length > 0 && (
+                        <button
+                            onClick={handleBulkDelete}
+                            className="bg-red-500/10 text-red-400 border border-red-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-red-500/20 transition-all"
+                        >
+                            <Trash2 size={18} /> Delete ({selectedTaskIds.length})
+                        </button>
+                    )}
                     <label className={`p-3 px-5 glass-card flex items-center gap-2 text-sm font-bold cursor-pointer hover:bg-white/5 transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                         <Upload size={18} className="text-blue-400" />
                         <span>{isUploading ? 'Importing...' : 'Import CSV'}</span>
@@ -162,7 +200,16 @@ const TaskManager = ({ apiKey }) => {
             <div className="flex flex-col gap-3">
                 {loading ? <div className="p-20 text-center text-slate-500">Loading tasks...</div> :
                     tasks.length === 0 ? <div className="p-20 text-center text-slate-500 glass-card">No tasks found. Create one to get started!</div> :
-                        tasks.map(t => <TaskCard key={t.task_id} task={t} onEdit={handleEdit} onDelete={handleDelete} />)
+                        tasks.map(t => (
+                            <TaskCard
+                                key={t.task_id}
+                                task={t}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
+                                isSelected={selectedTaskIds.includes(t.task_id)}
+                                onSelect={toggleTaskSelection}
+                            />
+                        ))
                 }
             </div>
 

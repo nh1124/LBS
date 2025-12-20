@@ -1,0 +1,3 @@
+task_name,rule_type,context,base_load_score
+Bad Task,INVALID_RULE,work,2.0
+Valid Task,ONCE,life,3.0

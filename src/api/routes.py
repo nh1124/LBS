@@ -142,6 +142,12 @@ def upload_tasks_csv(
                 if not val: return False
                 return str(val).lower() in ('true', '1', 'yes', 'y', 't')
 
+            # Validate rule_type
+            rule_type = row.get('rule_type', 'WEEKLY').upper()
+            valid_rules = ['WEEKLY', 'ONCE', 'EVERY_N_DAYS', 'MONTHLY_DAY']
+            if rule_type not in valid_rules:
+                raise HTTPException(status_code=400, detail=f"Invalid rule_type: {rule_type}")
+
             db_task = Task(
                 task_id=task_id,
                 user_id=identity.user_id,
@@ -149,7 +155,7 @@ def upload_tasks_csv(
                 context=row.get('context', 'work').lower(),
                 base_load_score=float(row.get('base_load_score', 2.0)),
                 active=to_bool(row.get('active', 'true')),
-                rule_type=row.get('rule_type', 'WEEKLY'),
+                rule_type=rule_type,
                 due_date=date.fromisoformat(row['due_date']) if row.get('due_date') and row['due_date'].strip() else None,
                 mon=to_bool(row.get('mon', 'false')),
                 tue=to_bool(row.get('tue', 'false')),
@@ -172,10 +178,16 @@ def upload_tasks_csv(
             if db_task.end_date and db_task.end_date > max_end: max_end = db_task.end_date
 
             tasks_to_create.append(db_task)
+        except HTTPException:
+            raise
         except Exception as e:
-            # Log error and continue
+            # Log other parsing errors (like float conversion) and continue
             print(f"Error parsing row: {e}")
             continue
+
+    if not tasks_to_create and reader.line_num > 1:
+        # If we didn't created any tasks but there were rows (line_num > 1 because line 1 is header)
+        raise HTTPException(status_code=400, detail="No valid tasks found in CSV")
 
     if tasks_to_create:
         db.add_all(tasks_to_create)
@@ -205,6 +217,31 @@ def delete_task(
     engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
     
     return {"message": "Task deleted successfully"}
+
+@router.post("/tasks/bulk-delete")
+def bulk_delete_tasks(
+    task_ids: List[str],
+    identity: Identity = Depends(resolve_identity),
+    db: Session = Depends(get_db)
+):
+    tasks = db.query(Task).filter(
+        Task.task_id.in_(task_ids),
+        Task.user_id == identity.user_id
+    ).all()
+    
+    if not tasks:
+        return {"message": "No tasks found to delete"}
+    
+    count = len(tasks)
+    for t in tasks:
+        db.delete(t)
+    db.commit()
+    
+    # Trigger expansion for user
+    engine = LBSEngine(db, identity.user_id)
+    engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
+    
+    return {"message": f"Successfully deleted {count} tasks"}
 
 @router.post("/exceptions")
 def create_exception(
