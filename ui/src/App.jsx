@@ -14,6 +14,7 @@ import {
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import TaskManager from './components/TaskManager';
+import LBSCalendar from './components/LBSCalendar';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
   <div
@@ -82,6 +83,12 @@ function App() {
             onClick={() => setActiveTab('tasks')}
           />
           <SidebarItem
+            icon={Calendar}
+            label="Calendar"
+            active={activeTab === 'calendar'}
+            onClick={() => setActiveTab('calendar')}
+          />
+          <SidebarItem
             icon={Settings}
             label="Settings"
             active={activeTab === 'settings'}
@@ -105,6 +112,7 @@ function App() {
       <div className="flex-grow overflow-y-auto p-10">
         {activeTab === 'dashboard' && <Dashboard apiKey={apiKey} />}
         {activeTab === 'tasks' && <TaskManager apiKey={apiKey} />}
+        {activeTab === 'calendar' && <LBSCalendar apiKey={apiKey} />}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold mb-8">System Configuration</h2>

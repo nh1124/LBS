@@ -1,4 +1,4 @@
 @echo off
-echo Starting LBS Ecosystem (PostgreSQL + Backend + UI)...
-docker-compose up
+echo Rebuilding and Starting LBS Ecosystem...
+docker-compose up --build
 pause

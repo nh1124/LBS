@@ -295,7 +295,12 @@ def get_heatmap(
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
-    return {"days": engine.get_heatmap_data(start, end) if hasattr(engine, 'get_heatmap_data') else get_heatmap_legacy(engine, start, end)}
+    # Ensure range is expanded
+    engine.expand_tasks(start, end)
+    
+    if hasattr(engine, 'get_heatmap_data'):
+        return engine.get_heatmap_data(start, end)
+    return get_heatmap_legacy(engine, start, end)
 
 def get_heatmap_legacy(engine, start, end):
     data = []
@@ -304,8 +309,9 @@ def get_heatmap_legacy(engine, start, end):
         load = engine.calculate_daily_load(curr)
         data.append({
             "date": str(curr),
-            "load": load["adjusted_load"],
-            "level": load["level"]
+            "adjusted_load": load["adjusted_load"],
+            "level": load["level"],
+            "task_count": load["task_count"]
         })
         curr += timedelta(days=1)
     return data
@@ -313,11 +319,12 @@ def get_heatmap_legacy(engine, start, end):
 @router.get("/trends")
 def get_trends(
     weeks: int = 12,
+    start_date: Optional[date] = None,
     identity: Identity = Depends(resolve_identity),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
-    return {"trends": engine.get_trend_data(weeks)}
+    return {"trends": engine.get_trend_data(weeks, start_date)}
 
 @router.get("/context-distribution")
 def get_context_distribution(

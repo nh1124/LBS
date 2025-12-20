@@ -160,7 +160,18 @@ class LBSEngine:
         ).all()
         
         if not cache_entries:
-            return {"date": target_date, "adjusted_load": 0.0, "task_count": 0, "level": "SAFE", "cap": cap, "tasks": []}
+            return {
+                "date": target_date, 
+                "base_load": 0.0,
+                "task_count": 0, 
+                "unique_contexts": 0,
+                "adjusted_load": 0.0, 
+                "count_penalty": 0.0,
+                "context_penalty": 0.0,
+                "level": "SAFE", 
+                "cap": cap, 
+                "tasks": []
+            }
             
         base_load = sum(e.calculated_load for e in cache_entries)
         task_count = len(cache_entries)
@@ -185,6 +196,8 @@ class LBSEngine:
             "task_count": task_count,
             "unique_contexts": unique_contexts,
             "adjusted_load": round(adjusted_load, 2),
+            "count_penalty": round(count_penalty, 2),
+            "context_penalty": round(context_penalty, 2),
             "level": level,
             "cap": cap,
             "tasks": [
@@ -219,10 +232,13 @@ class LBSEngine:
             "recovery_rate": round((recovery_days / 7) * 100, 1)
         }
 
-    def get_trend_data(self, weeks: int = 12) -> List[Dict]:
+    def get_trend_data(self, weeks: int = 12, start_date: Optional[date] = None) -> List[Dict]:
         """Get average and max load per week for trend analysis"""
-        end_date = date.today()
-        start_date = end_date - timedelta(weeks=weeks)
+        if not start_date:
+            end_date = date.today()
+            start_date = end_date - timedelta(weeks=weeks)
+        else:
+            end_date = start_date + timedelta(weeks=weeks)
         
         trends = []
         current_week_start = start_date

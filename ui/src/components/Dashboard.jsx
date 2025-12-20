@@ -23,6 +23,7 @@ const Dashboard = ({ apiKey }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [trendStartDate, setTrendStartDate] = useState(new Date().toISOString().split('T')[0]);
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
@@ -37,7 +38,7 @@ const Dashboard = ({ apiKey }) => {
                 setLoading(true);
                 const [dashResp, trendsResp] = await Promise.all([
                     api.get('/dashboard'),
-                    api.get('/trends?weeks=4')
+                    api.get(`/trends?weeks=4&start_date=${trendStartDate}`)
                 ]);
                 setData({ ...dashResp.data, trends: trendsResp.data.trends });
                 setLoading(false);
@@ -47,7 +48,7 @@ const Dashboard = ({ apiKey }) => {
             }
         };
         if (apiKey) fetchData();
-    }, [apiKey]);
+    }, [apiKey, trendStartDate]);
 
     if (loading) return <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">Initializing Dashboard...</div>;
     if (error) return <div className="text-red-400 p-8 glass-card">Error: {error}. Make sure backend is running on the configured port.</div>;
@@ -176,7 +177,34 @@ const Dashboard = ({ apiKey }) => {
             </div>
 
             <div className="glass-card p-8">
-                <h3 className="font-bold text-lg mb-8">4-Week Prediction Trend</h3>
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="font-bold text-lg">4-Week Prediction Trend</h3>
+                    <div className="flex items-center gap-4 bg-white/5 p-2 rounded-xl border border-white/5">
+                        <button
+                            onClick={() => {
+                                const d = new Date(trendStartDate);
+                                d.setDate(d.getDate() - 28);
+                                setTrendStartDate(d.toISOString().split('T')[0]);
+                            }}
+                            className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
+                        >
+                            Previous 4W
+                        </button>
+                        <span className="text-xs font-bold text-slate-300">
+                            Range: {new Date(trendStartDate).toLocaleDateString()} - {new Date(new Date(trendStartDate).getTime() + 28 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                        </span>
+                        <button
+                            onClick={() => {
+                                const d = new Date(trendStartDate);
+                                d.setDate(d.getDate() + 28);
+                                setTrendStartDate(d.toISOString().split('T')[0]);
+                            }}
+                            className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
+                        >
+                            Next 4W
+                        </button>
+                    </div>
+                </div>
                 <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={data.trends}>
