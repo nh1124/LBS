@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
     Plus, Edit2, Trash2, Calendar, CheckCircle2, XCircle,
-    Menu, Filter, Search, Tag, Clock, ChevronDown, Upload
+    Menu, Filter, Search, Tag, Clock, ChevronDown, Upload, Download
 } from 'lucide-react';
 
 const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
@@ -57,6 +57,12 @@ const TaskManager = ({ token, apiKey }) => {
     const [editingTask, setEditingTask] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredTasks = tasks.filter(t =>
+        t.task_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.context.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     // Form State
     const [formData, setFormData] = useState({
@@ -138,6 +144,41 @@ const TaskManager = ({ token, apiKey }) => {
         );
     };
 
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            const allFilteredIds = filteredTasks.map(t => t.task_id);
+            // Union with existing selection to not lose manually selected hidden tasks
+            setSelectedTaskIds(prev => [...new Set([...prev, ...allFilteredIds])]);
+        } else {
+            const filteredIdsSet = new Set(filteredTasks.map(t => t.task_id));
+            setSelectedTaskIds(prev => prev.filter(id => !filteredIdsSet.has(id)));
+        }
+    };
+
+    const handleExportCsv = () => {
+        const selectedTasks = tasks.filter(t => selectedTaskIds.includes(t.task_id));
+        if (selectedTasks.length === 0) return;
+
+        const headers = ["task_name", "context", "base_load_score", "rule_type", "active", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "interval_days", "month_day", "due_date"];
+        const rows = selectedTasks.map(t => headers.map(h => {
+            const val = t[h];
+            if (val === null || val === undefined) return "";
+            if (typeof val === 'string' && val.includes(',')) return `"${val}"`;
+            return val;
+        }).join(','));
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `lbs_tasks_export_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleCsvUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -169,12 +210,20 @@ const TaskManager = ({ token, apiKey }) => {
                 </div>
                 <div className="flex gap-3">
                     {selectedTaskIds.length > 0 && (
-                        <button
-                            onClick={handleBulkDelete}
-                            className="bg-red-500/10 text-red-400 border border-red-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-red-500/20 transition-all"
-                        >
-                            <Trash2 size={18} /> Delete ({selectedTaskIds.length})
-                        </button>
+                        <>
+                            <button
+                                onClick={handleExportCsv}
+                                className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-emerald-500/20 transition-all"
+                            >
+                                <Download size={18} /> Export ({selectedTaskIds.length})
+                            </button>
+                            <button
+                                onClick={handleBulkDelete}
+                                className="bg-red-500/10 text-red-400 border border-red-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-red-500/20 transition-all"
+                            >
+                                <Trash2 size={18} /> Delete ({selectedTaskIds.length})
+                            </button>
+                        </>
                     )}
                     <label className={`p-3 px-5 glass-card flex items-center gap-2 text-sm font-bold cursor-pointer hover:bg-white/5 transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                         <Upload size={18} className="text-blue-400" />
@@ -193,17 +242,35 @@ const TaskManager = ({ token, apiKey }) => {
             <div className="flex gap-4 mb-4">
                 <div className="flex-grow relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input className="w-full pl-12 bg-white/5 border-white/5" placeholder="Search tasks or contexts..." />
+                    <input
+                        className="w-full pl-12 bg-white/5 border-white/5"
+                        placeholder="Search tasks or contexts..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                 </div>
-                <button className="p-2 px-4 glass-card flex items-center gap-2 text-sm text-slate-400">
-                    <Filter size={16} /> Filters
+                <button
+                    className="p-2 px-4 glass-card flex items-center gap-2 text-sm text-slate-400"
+                    onClick={() => setSearchQuery('')}
+                >
+                    {searchQuery ? 'Clear' : <><Filter size={16} /> Filters</>}
                 </button>
             </div>
 
             <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-4 px-5 py-2">
+                    <input
+                        type="checkbox"
+                        checked={filteredTasks.length > 0 && filteredTasks.every(t => selectedTaskIds.includes(t.task_id))}
+                        onChange={handleSelectAll}
+                        className="w-5 h-5 rounded border-white/10 bg-white/5 cursor-pointer accent-blue-500"
+                    />
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Select All Visible</span>
+                </div>
+
                 {loading ? <div className="p-20 text-center text-slate-500">Loading tasks...</div> :
-                    tasks.length === 0 ? <div className="p-20 text-center text-slate-500 glass-card">No tasks found. Create one to get started!</div> :
-                        tasks.map(t => (
+                    filteredTasks.length === 0 ? <div className="p-20 text-center text-slate-500 glass-card">No tasks found matching your criteria.</div> :
+                        filteredTasks.map(t => (
                             <TaskCard
                                 key={t.task_id}
                                 task={t}
