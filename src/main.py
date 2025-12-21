@@ -5,12 +5,13 @@ from fastapi.responses import FileResponse
 import os
 import logging
 import sys
-from .api import routes, users
+from .api import routes, users, auth
+from .auth import get_password_hash
 from .models.database import engine, Base, SessionLocal, User
 from .config import settings
+from .migrate import migrate
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -49,6 +50,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_populate():
+    # Run migrations first
+    migrate()
+    
+    # Create tables (ensure all exist after cleanup)
+    Base.metadata.create_all(bind=engine)
+    
     # Ensure default user exists if LBS_REQUIRE_API_KEY is false
     if not settings.LBS_REQUIRE_API_KEY:
         db = SessionLocal()
@@ -60,7 +67,7 @@ def startup_populate():
                     user_id=settings.LBS_DEFAULT_USER_ID,
                     email="dev-fallback@lbs.internal",
                     name="Default Dev User",
-                    api_key="DEV-FALLBACK-KEY"
+                    password_hash=get_password_hash("password") # Default dev password
                 )
                 db.add(user)
                 db.commit()
@@ -68,6 +75,7 @@ def startup_populate():
             db.close()
 
 # Include routers
+app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(routes.router, prefix=settings.API_V1_STR)
 

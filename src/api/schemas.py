@@ -5,12 +5,13 @@ from datetime import date, datetime
 class UserCreate(BaseModel):
     email: str
     name: Optional[str] = None
+    password: Optional[str] = None
 
 class UserResponse(BaseModel):
     user_id: str
     email: str
-    name: Optional[str]
-    api_key: Optional[str]
+    name: Optional[str] = None
+    is_active: bool
     created_at: datetime
     class Config: from_attributes = True
 
@@ -89,3 +90,64 @@ class TrendResponse(BaseModel):
 
 class ContextDistributionResponse(BaseModel):
     distribution: List[dict]
+
+class LinkRequest(BaseModel):
+    username_or_email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    username_or_email: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class LinkConfirmRequest(BaseModel):
+    external_jwt: str
+
+class LinkedUserResponse(BaseModel):
+    user_id: str
+    username: str
+    email: str
+    issuer: str
+    subject: str
+
+class ProvisionRequest(BaseModel):
+    rotate: bool = False
+    scopes: List[str] = ["read"]
+
+class ProvisionResponse(BaseModel):
+    client_id: str
+    already_exists: bool = False
+    api_key: Optional[str] = None # Only once
+
+class APIKeyCreate(BaseModel):
+    client_id: str
+    scopes: List[str] = ["read"]
+    expires_in_days: Optional[int] = None
+
+class APIKeyMetaResponse(BaseModel):
+    id: str
+    client_id: str
+    scopes: List[str]
+    is_active: bool
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+
+    class Config: from_attributes = True
+
+class APIKeyResponse(BaseModel):
+    id: str
+    client_id: str
+    scopes: List[str]
+    is_active: bool
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+    api_key: Optional[str] = None # Plaintext once
+
+    class Config: from_attributes = True

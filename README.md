@@ -61,18 +61,36 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 
 ## Authentication & Security
 
-LBS uses an API Key-centric authentication system.
+LBS uses a **Local-First** authentication model with optional **External System Linking**.
+
+### Auth Concepts
+
+1.  **Local Identity**:
+    *   Issued by LBS.
+    *   Authenticated via local username/password.
+    *   Used for all standard UI/API operations.
+2.  **External Identity (Optional)**:
+    *   Issued by an External IdP (e.g. Antigravity OS).
+    *   Linked to a local LBS user for cross-system integration.
+3.  **Client Credentials (M2M)**:
+    *   API keys issued by LBS.
+    *   Used for automation and external system interactions.
 
 ### Auth Methods (Priority Order)
-1. **X-API-KEY Header**: Primary method. Resolves user identity, client ID, and scopes.
-2. **JWT Bearer Token**: Secondary method for browser/UI sessions.
-3. **Dev Fallback**: Used only if `LBS_REQUIRE_API_KEY=false`. Uses `LBS_DEFAULT_USER_ID`.
+
+1.  **JWT Bearer Token (Local)**: Primary method for human users. Verified against LBS secret.
+2.  **X-API-KEY Header**: Secondary method for M2M/Automation.
+3.  **JWT Bearer Token (External)**: Strictly for linking flows or specific automation.
+4.  **Dev Fallback**: Used only if `LBS_REQUIRE_API_KEY=false`.
 
 ### User Setup
-The easiest way to get started is via the **Integrated Registration UI**:
-1. Open the UI at [http://localhost:8100](http://localhost:8100).
-2. Click **"Create Account"** in the authentication modal.
-3. Fill in your details to instantly generate your personal API Key.
+
+1.  Open the UI at [http://localhost:8100](http://localhost:8100).
+2.  Create a **Local Account** with a username and password.
+3.  Log in to access the Dashboard.
+4.  (Optional) Go to **Settings** to:
+    *   **Link External System**: Connect your account to an external IdP.
+    *   **Manage API Keys**: Generate keys for automation scripts.
 
 ### Usage Examples (Curl)
 ```bash
@@ -87,9 +105,11 @@ curl -H "Authorization: Bearer <token>" http://localhost:8100/api/lbs/tasks
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LBS_ENV` | `dev` | `dev` or `prod`. `prod` enforces strict security. |
-| `LBS_REQUIRE_API_KEY` | `false` | If `true`, requires API key or JWT. If `false`, falls back to default user. |
+| `LBS_ENV` | `dev` | `dev` or `prod`. `prod` restricts debug endpoints and enforces strict security. |
+| `LBS_REQUIRE_API_KEY` | `false` | If `true`, requires API key or JWT. If `false`, falls back to default user (only in non-prod). |
+| `ALLOW_DEV_FALLBACK` | `true` | If `true`, allows auth fallback in non-prod environments. |
 | `LBS_DEFAULT_USER_ID` | `0000...` | UUID used for dev fallback. |
+| `LBS_API_KEY_PEPPER` | `lbs-default...` | Pepper used for API key hashing. **Change in production!** |
 | `LBS_BIND_HOST` | `127.0.0.1` | Host to bind uvicorn. |
 | `BACKEND_PORT` | `8100` | Port for the backend service. |
 

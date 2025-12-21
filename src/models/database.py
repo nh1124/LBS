@@ -1,7 +1,8 @@
 from sqlalchemy import Column, String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, create_engine
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
-from .user import Base, User
+from .user import Base, User, APIKey
+from .external_identity import ExternalIdentity
 from ..config import settings
 
 class SystemConfig(Base):

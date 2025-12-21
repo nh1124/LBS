@@ -50,7 +50,7 @@ const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
     );
 };
 
-const TaskManager = ({ apiKey }) => {
+const TaskManager = ({ token, apiKey }) => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,7 +66,10 @@ const TaskManager = ({ apiKey }) => {
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
-        headers: { 'X-API-Key': apiKey }
+        headers: {
+            'Authorization': token ? `Bearer ${token}` : undefined,
+            'X-API-Key': !token ? apiKey : undefined
+        }
     });
 
     const fetchTasks = async () => {
@@ -80,7 +83,7 @@ const TaskManager = ({ apiKey }) => {
         }
     };
 
-    useEffect(() => { if (apiKey) fetchTasks(); }, [apiKey]);
+    useEffect(() => { if (token || apiKey) fetchTasks(); }, [token, apiKey]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

@@ -19,7 +19,7 @@ const KPICard = ({ icon: Icon, label, value, subtext, color }) => (
     </div>
 );
 
-const Dashboard = ({ apiKey }) => {
+const Dashboard = ({ token, apiKey }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -28,7 +28,8 @@ const Dashboard = ({ apiKey }) => {
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
         headers: {
-            'X-API-Key': apiKey
+            'Authorization': token ? `Bearer ${token}` : undefined,
+            'X-API-Key': !token ? apiKey : undefined
         }
     });
 
@@ -47,8 +48,8 @@ const Dashboard = ({ apiKey }) => {
                 setLoading(false);
             }
         };
-        if (apiKey) fetchData();
-    }, [apiKey, trendStartDate]);
+        if (token || apiKey) fetchData();
+    }, [token, apiKey, trendStartDate]);
 
     if (loading) return <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">Initializing Dashboard...</div>;
     if (error) return <div className="text-red-400 p-8 glass-card">Error: {error}. Make sure backend is running on the configured port.</div>;

@@ -12,11 +12,11 @@ class User(Base):
     
     user_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=True) # For future use
+    password_hash = Column(String, nullable=True)
     name = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
-    api_key = Column(String, unique=True, index=True, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
 
@@ -24,13 +24,14 @@ class APIKey(Base):
     __tablename__ = "api_keys"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    key_hash = Column(String, unique=True, index=True, nullable=False)
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False)
-    client_id = Column(String, nullable=True)
-    scopes = Column(JSON, default=list) # List of strings
-    is_active = Column(Boolean, default=True)
-    name = Column(String, nullable=True) # Human label
-    created_at = Column(DateTime, default=datetime.utcnow)
+    client_id = Column(String, nullable=False) # e.g., "external-client", "manual-script"
+    key_hash = Column(String, unique=True, index=True, nullable=False)
+    scopes = Column(JSON, nullable=False, default=lambda: ["read"])
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
     
     user = relationship("User", back_populates="keys")

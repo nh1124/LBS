@@ -6,10 +6,10 @@ import uuid
 import csv
 import io
 
-from ..models.database import get_db, Task, TaskException, User
+from ..models.database import get_db, User, Task, TaskException, LBSDailyCache
 from ..models.user import User as DBUser
 from ..services.lbs_engine import LBSEngine
-from ..auth import resolve_identity, Identity
+from ..auth import require_local_user, Identity
 from .schemas import TaskCreate, TaskUpdate, TaskResponse, TaskDetail, ExceptionCreate, DashboardResponse
 
 router = APIRouter(tags=["LBS"])
@@ -17,7 +17,7 @@ router = APIRouter(tags=["LBS"])
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
     start_date: Optional[date] = None,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     if not start_date:
@@ -43,7 +43,7 @@ def get_dashboard(
 @router.post("/tasks", response_model=TaskResponse)
 def create_task(
     task_in: TaskCreate,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
@@ -67,7 +67,7 @@ def create_task(
 @router.get("/tasks", response_model=List[TaskResponse])
 def list_tasks(
     context: Optional[str] = None,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     query = db.query(Task).filter(Task.user_id == identity.user_id)
@@ -78,7 +78,7 @@ def list_tasks(
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task_detail(
     task_id: str,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
@@ -90,7 +90,7 @@ def get_task_detail(
 def update_task(
     task_id: str,
     task_in: TaskUpdate,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     db_task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
@@ -116,7 +116,7 @@ def update_task(
 @router.post("/tasks/upload-csv")
 def upload_tasks_csv(
     file: UploadFile = File(...),
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     if not file.filename.endswith('.csv'):
@@ -201,7 +201,7 @@ def upload_tasks_csv(
 @router.delete("/tasks/{task_id}")
 def delete_task(
     task_id: str,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     db_task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
@@ -221,7 +221,7 @@ def delete_task(
 @router.post("/tasks/bulk-delete")
 def bulk_delete_tasks(
     task_ids: List[str],
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     tasks = db.query(Task).filter(
@@ -246,7 +246,7 @@ def bulk_delete_tasks(
 @router.post("/exceptions")
 def create_exception(
     exc: ExceptionCreate,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     # Verify task ownership
@@ -270,7 +270,7 @@ def create_exception(
 @router.get("/calculate/{target_date}")
 def calculate_load(
     target_date: date,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
@@ -280,7 +280,7 @@ def calculate_load(
 def expand_tasks(
     start_date: date,
     end_date: date,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
@@ -291,7 +291,7 @@ def expand_tasks(
 def get_heatmap(
     start: date,
     end: date,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
@@ -320,7 +320,7 @@ def get_heatmap_legacy(engine, start, end):
 def get_trends(
     weeks: int = 12,
     start_date: Optional[date] = None,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
@@ -330,7 +330,7 @@ def get_trends(
 def get_context_distribution(
     start: date,
     end: date,
-    identity: Identity = Depends(resolve_identity),
+    identity: Identity = Depends(require_local_user),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)

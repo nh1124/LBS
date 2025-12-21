@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Info } from 'lucide-react';
 import DayDetailModal from './DayDetailModal';
 
-const LBSCalendar = ({ apiKey }) => {
+const LBSCalendar = ({ token, apiKey }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [heatmapData, setHeatmapData] = useState({});
     const [loading, setLoading] = useState(false);
@@ -12,7 +12,10 @@ const LBSCalendar = ({ apiKey }) => {
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
-        headers: { 'X-API-Key': apiKey }
+        headers: {
+            'Authorization': token ? `Bearer ${token}` : undefined,
+            'X-API-Key': !token ? apiKey : undefined
+        }
     });
 
     const fetchMonthData = async () => {
@@ -37,8 +40,8 @@ const LBSCalendar = ({ apiKey }) => {
     };
 
     useEffect(() => {
-        if (apiKey) fetchMonthData();
-    }, [currentDate, apiKey]);
+        if (token || apiKey) fetchMonthData();
+    }, [currentDate, token, apiKey]);
 
     const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
     const firstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();

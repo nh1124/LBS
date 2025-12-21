@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     LBS_DEFAULT_USER_ID: str = "00000000-0000-0000-0000-000000000000"
     LBS_ENABLE_DEV_HEADER_AUTH: bool = False
     LBS_CORS_ALLOW_ORIGINS: str = "*"
+    LBS_API_KEY_PEPPER: str = "lbs-default-pepper-change-me"
+    ALLOW_DEV_FALLBACK: bool = True # Only works in LBS_ENV != "prod"
+    
+    # External System Integration
+    ENABLE_EXTERNAL_LINKING: bool = True
+    ENABLE_EXTERNAL_LOGIN: bool = False
     
     # Database
     DATABASE_URL: str = "sqlite:///./lbs.db"
