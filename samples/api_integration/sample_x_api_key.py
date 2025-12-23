@@ -5,9 +5,8 @@ import json
 # LBS API Configuration
 BASE_URL = os.getenv("LBS_BASE_URL", "http://localhost:8100/api/lbs")
 
-# Manual API Key provided by the user
-# Pattern: Read from environment or hardcode for simple testing
-API_KEY = os.getenv("LBS_API_KEY", "pOXwGqzU9gXIzcHsjTPIGEq_sazKtr1SbIcuacZLczU")
+# API Key from environment (e.g. export LBS_API_KEY=your_key_here)
+API_KEY = os.getenv("LBS_API_KEY", "")
 
 headers = {
     "X-API-KEY": API_KEY,
