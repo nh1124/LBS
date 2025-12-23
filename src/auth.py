@@ -252,6 +252,12 @@ async def require_client_api_key(identity: Identity = Depends(resolve_identity))
         )
     return identity
 
+async def require_user_identity(identity: Identity = Depends(resolve_identity)) -> Identity:
+    """Accept any valid identity mapped to a user (local, external, api_key, dev_fallback)."""
+    # resolve_identity already raises 401 if no valid auth is found.
+    # We just need to ensure it's not an unlinked external identity (which already raises in resolve_identity).
+    return identity
+
 def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None):
     """Issues an LBS token with strict claims: iss="lbs", aud="lbs-ui", sub=<user_id>"""
     if expires_delta:

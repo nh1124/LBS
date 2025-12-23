@@ -6,8 +6,8 @@ import os
 import logging
 import sys
 from .api import routes, users, auth
-from .auth import get_password_hash
-from .models.database import engine, Base, SessionLocal, User
+from .auth import get_password_hash, hash_api_key
+from .models.database import engine, Base, SessionLocal, User, APIKey
 from .config import settings
 from .migrate import migrate
 
