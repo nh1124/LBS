@@ -120,14 +120,53 @@ def create_lbs_task(title, load, due_date):
 
 ## Important Endpoints
 
+All endpoints are prefixed with `/api/lbs`.
+
+### Authentication & API Keys (`/auth`)
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/health` | GET | Check system status (No auth required in dev) |
-| `/auth/me` | GET | Verify current identity |
-| `/dashboard` | GET | Get current load summary and predictions |
-| `/tasks` | GET/POST | List or create tasks |
-| `/heatmap` | GET | Get daily load distribution for a date range |
-| `/trends` | GET | Get multi-week load trend predictions |
+| `/auth/login` | POST | Login with username/password to get JWT |
+| `/auth/me` | GET | Verify current identity status |
+| `/auth/api-keys` | GET | List your active API keys |
+| `/auth/api-keys` | POST | Create a new API key |
+| `/auth/api-keys/{id}` | DELETE | Revoke an API key |
+| `/auth/link/confirm` | POST | Link an external identity (e.g. from host system) |
+| `/auth/identity` | GET | [Dev Only] Detailed identity debug info |
+
+### User Management (`/users`)
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/users/` | POST | Create a new local user account |
+| `/users/me` | GET | Get full profile details for current user |
+
+### Task Operations (`/tasks`)
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/tasks` | GET | List your tasks (supports `context` filter) |
+| `/tasks` | POST | Create a single LBS task |
+| `/tasks/{id}` | GET | Get detailed task information |
+| `/tasks/{id}` | PUT | Update an existing task |
+| `/tasks/{id}` | DELETE | Delete a task |
+| `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
+| `/tasks/upload` | POST | Bulk import tasks via CSV file |
+
+### Load Analysis & Insights
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/dashboard` | GET | Summary of current load and next-day predictions |
+| `/heatmap` | GET | Daily load distribution for a specific date range |
+| `/trends` | GET | Multi-week load trend predictions (up to 12 weeks) |
+| `/distribution/context` | GET | Load distribution grouped by task context |
+| `/load` | GET | Get raw load calculation for a specific date |
+| `/expand` | GET | Force trigger task expansion for a range |
+| `/exceptions` | POST | Register a task exception (e.g. absence, priority shift) |
+
+### System
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/health` | GET | Check system status (No auth required) |
+| `/` | GET | Root info and link to `/docs` |
+| `/docs` | GET | Interactive Swagger API documentation |
 
 ---
 
