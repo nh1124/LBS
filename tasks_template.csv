@@ -1,6 +1,0 @@
-task_name,context,base_load_score,active,rule_type,due_date,mon,tue,wed,thu,fri,sat,sun,interval_days,anchor_date,month_day,nth_in_month,weekday_mon1,start_date,end_date,notes
-Weekly Meeting,work,2.5,true,WEEKLY,,true,false,false,false,false,false,false,,,,,,,,"Regular sync meeting"
-Gym Session,life,1.5,true,WEEKLY,,false,true,false,true,false,false,false,,,,,,,,"Health & Fitness"
-Write Monthly Report,work,5.0,true,MONTHLY_DAY,,,,,,,,,,15,,,,,"Monthly reporting task"
-Every 3 Days Check,work,1.0,true,EVERY_N_DAYS,,,,,,,,,,3,2025-12-20,,,,,"Periodic maintenance"
-One-time Project,work,8.0,true,ONCE,2025-12-25,,,,,,,,,,,,,,,"Special project deadline"
