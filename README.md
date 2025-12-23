@@ -56,8 +56,26 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 
 -   `src/`: Backend source code (API, Services, Models).
 -   `ui/`: Frontend source code (React App).
+-   `samples/`: Integration samples for external systems.
 -   `tasks_template.csv`: Template for bulk task import.
 -   `docker-compose.yml`: Service definitions.
+
+## Samples & Integration
+
+Integration samples for external systems can be found in the `samples/api_integration` directory.
+
+- `sample_x_api_key.py`: Demonstrates authentication using the `X-API-KEY` header.
+- `sample_external_token.py`: Demonstrates authentication using the `Authorization: Bearer <token>` header (External System Token).
+
+To run the samples, ensure you have the `requests` library installed:
+```bash
+pip install requests
+```
+Set the necessary environment variables:
+```bash
+export LBS_API_KEY="your_api_key"
+python samples/api_integration/sample_x_api_key.py
+```
 
 ## Authentication & Security
 
