@@ -56,9 +56,10 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 
 -   `src/`: Backend source code (API, Services, Models).
 -   `ui/`: Frontend source code (React App).
--   `samples/`: Integration samples for external systems.
--   `tasks_template.csv`: Template for bulk task import.
+-   `samples/`: Integration samples and templates.
+-   `samples/tasks_template.csv`: Template for bulk task import.
 -   `docker-compose.yml`: Service definitions.
+-   `.env.example`: Sample environment configuration.
 
 ## Samples & Integration
 
