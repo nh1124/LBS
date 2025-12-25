@@ -9,7 +9,6 @@ from .api import routes, users, auth
 from .auth import get_password_hash, hash_api_key
 from .models.database import engine, Base, SessionLocal, User, APIKey
 from .config import settings
-from .migrate import migrate
 
 
 
@@ -50,10 +49,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_populate():
-    # Run migrations first
-    migrate()
-    
-    # Create tables (ensure all exist after cleanup)
+    # Create tables (ensure all exist)
     Base.metadata.create_all(bind=engine)
     
     # Ensure default user exists if LBS_REQUIRE_API_KEY is false
