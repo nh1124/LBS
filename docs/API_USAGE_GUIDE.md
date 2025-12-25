@@ -148,7 +148,9 @@ All endpoints are prefixed with `/api/lbs`.
 | `/tasks/{id}` | PUT | Update an existing task |
 | `/tasks/{id}` | DELETE | Delete a task |
 | `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
-| `/tasks/upload` | POST | Bulk import tasks via CSV file |
+| `/tasks/bulk-update-status` | POST | Update active status for multiple tasks |
+| `/tasks/upload-csv` | POST | Bulk import tasks via CSV file |
+
 
 ### Load Analysis & Insights
 | Endpoint | Method | Description |

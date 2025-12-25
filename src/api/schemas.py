@@ -63,6 +63,13 @@ class TaskUpdate(BaseModel):
     end_date: Optional[date] = None
     notes: Optional[str] = None
 
+class TaskBulkDelete(BaseModel):
+    task_ids: List[str]
+
+class TaskBulkStatusUpdate(BaseModel):
+    task_ids: List[str]
+    active: bool
+
 class TaskResponse(TaskBase):
     task_id: str
     active: bool

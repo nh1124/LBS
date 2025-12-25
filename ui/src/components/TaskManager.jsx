@@ -128,7 +128,7 @@ const TaskManager = ({ token, apiKey }) => {
     const handleBulkDelete = async () => {
         if (window.confirm(`Delete ${selectedTaskIds.length} tasks?`)) {
             try {
-                await api.post('/tasks/bulk-delete', selectedTaskIds);
+                await api.post('/tasks/bulk-delete', { task_ids: selectedTaskIds });
                 alert("Tasks deleted successfully");
                 setSelectedTaskIds([]);
                 fetchTasks();

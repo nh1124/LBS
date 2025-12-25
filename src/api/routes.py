@@ -10,7 +10,16 @@ from ..models.database import get_db, User, Task, TaskException, LBSDailyCache
 from ..models.user import User as DBUser
 from ..services.lbs_engine import LBSEngine
 from ..auth import require_local_user, require_user_identity, Identity
-from .schemas import TaskCreate, TaskUpdate, TaskResponse, TaskDetail, ExceptionCreate, DashboardResponse
+from .schemas import (
+    TaskCreate, 
+    TaskUpdate, 
+    TaskResponse, 
+    TaskDetail, 
+    ExceptionCreate, 
+    DashboardResponse,
+    TaskBulkDelete,
+    TaskBulkStatusUpdate
+)
 
 router = APIRouter(tags=["LBS"])
 
@@ -50,23 +59,35 @@ def create_task(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
+    print(f"[DEBUG LBS] Creating task for user {identity.user_id}")
+    print(f"[DEBUG LBS] task_in: {task_in.dict()}")
     task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
-    db_task = Task(
-        **task_in.dict(),
-        task_id=task_id,
-        user_id=identity.user_id
-    )
-    db.add(db_task)
-    db.commit()
-    db.refresh(db_task)
-    
-    # Trigger expansion for range
-    engine = LBSEngine(db, identity.user_id)
-    expand_start = db_task.start_date or date.today()
-    expand_end = db_task.end_date or (date.today() + timedelta(days=90))
-    engine.expand_tasks(expand_start, expand_end)
-    
-    return db_task
+    try:
+        db_task = Task(
+            **task_in.dict(),
+            task_id=task_id,
+            user_id=identity.user_id
+        )
+        db.add(db_task)
+        db.commit()
+        db.refresh(db_task)
+        print(f"[DEBUG LBS] Task {task_id} created in DB")
+        
+        # Trigger expansion for range
+        engine = LBSEngine(db, identity.user_id)
+        expand_start = db_task.start_date or date.today()
+        expand_end = db_task.end_date or (date.today() + timedelta(days=90))
+        print(f"[DEBUG LBS] Expanding tasks from {expand_start} to {expand_end}")
+        engine.expand_tasks(expand_start, expand_end)
+        print(f"[DEBUG LBS] Expansion complete")
+        
+        return db_task
+    except Exception as e:
+        print(f"[DEBUG LBS] Error creating task: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tasks", response_model=List[TaskResponse])
 def list_tasks(
@@ -224,21 +245,19 @@ def delete_task(
 
 @router.post("/tasks/bulk-delete")
 def bulk_delete_tasks(
-    task_ids: List[str],
+    bulk_in: TaskBulkDelete,
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    tasks = db.query(Task).filter(
-        Task.task_id.in_(task_ids),
+    # Use optimized single-query delete instead of loop
+    count = db.query(Task).filter(
+        Task.task_id.in_(bulk_in.task_ids),
         Task.user_id == identity.user_id
-    ).all()
+    ).delete(synchronize_session='fetch')
     
-    if not tasks:
+    if count == 0:
         return {"message": "No tasks found to delete"}
     
-    count = len(tasks)
-    for t in tasks:
-        db.delete(t)
     db.commit()
     
     # Trigger expansion for user
@@ -246,6 +265,33 @@ def bulk_delete_tasks(
     engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
     
     return {"message": f"Successfully deleted {count} tasks"}
+
+@router.post("/tasks/bulk-update-status")
+def bulk_update_status(
+    bulk_in: TaskBulkStatusUpdate,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    tasks = db.query(Task).filter(
+        Task.task_id.in_(bulk_in.task_ids),
+        Task.user_id == identity.user_id
+    ).all()
+    
+    if not tasks:
+        return {"message": "No tasks found to update"}
+    
+    count = len(tasks)
+    for t in tasks:
+        t.active = bulk_in.active
+        t.updated_at = datetime.utcnow()
+    
+    db.commit()
+    
+    # Trigger expansion for user
+    engine = LBSEngine(db, identity.user_id)
+    engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
+    
+    return {"message": f"Successfully updated status for {count} tasks"}
 
 @router.post("/exceptions")
 def create_exception(
