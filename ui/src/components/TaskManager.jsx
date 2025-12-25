@@ -159,11 +159,20 @@ const TaskManager = ({ token, apiKey }) => {
         const selectedTasks = tasks.filter(t => selectedTaskIds.includes(t.task_id));
         if (selectedTasks.length === 0) return;
 
-        const headers = ["task_name", "context", "base_load_score", "rule_type", "active", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "interval_days", "month_day", "due_date"];
+        // Include all task fields for complete backup (excluding task_id, user_id which are regenerated on import)
+        const headers = [
+            "task_name", "context", "base_load_score", "rule_type", "active",
+            "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+            "interval_days", "anchor_date", "month_day", "nth_in_month", "weekday_mon1",
+            "start_date", "end_date", "due_date", "notes"
+        ];
         const rows = selectedTasks.map(t => headers.map(h => {
             const val = t[h];
             if (val === null || val === undefined) return "";
-            if (typeof val === 'string' && val.includes(',')) return `"${val}"`;
+            // Escape strings containing commas or newlines
+            if (typeof val === 'string' && (val.includes(',') || val.includes('\n') || val.includes('"'))) {
+                return `"${val.replace(/"/g, '""')}"`;
+            }
             return val;
         }).join(','));
 
