@@ -20,8 +20,10 @@ def verify():
 
     print("\nVerifying method signatures...")
     methods = [
-        "login", "verify_identity", "list_tasks", "get_task", 
-        "create_task", "update_task", "delete_task", 
+        "login", "verify_identity", "get_full_identity_debug", 
+        "confirm_link_external", "provision_api_key", "create_api_key",
+        "list_api_keys", "revoke_api_key", "create_user", "get_user_me",
+        "list_tasks", "get_task", "create_task", "update_task", "delete_task", 
         "bulk_delete_tasks", "bulk_update_status", "upload_csv",
         "get_dashboard", "get_heatmap", "get_trends", 
         "get_context_distribution", "calculate_load", 

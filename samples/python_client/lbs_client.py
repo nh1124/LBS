@@ -17,7 +17,8 @@ class LBSClient:
         self, 
         base_url: str = "http://localhost:8100/api/lbs", 
         api_key: Optional[str] = None, 
-        token: Optional[str] = None
+        token: Optional[str] = None,
+        external_jwt: Optional[str] = None
     ):
         """
         Initialize the LBS Client.
@@ -25,10 +26,12 @@ class LBSClient:
         :param base_url: The base URL of the LBS service (default: http://localhost:8100/api/lbs)
         :param api_key: X-API-KEY for authentication.
         :param token: JWT Bearer token for authentication.
+        :param external_jwt: External system JWT for identity linking (X-EXTERNAL-JWT).
         """
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key or os.getenv("LBS_API_KEY")
         self.token = token
+        self.external_jwt = external_jwt
         self._session = requests.Session()
 
     def _get_headers(self) -> Dict[str, str]:
@@ -40,6 +43,10 @@ class LBSClient:
             headers["X-API-KEY"] = self.api_key
         elif self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+            
+        if self.external_jwt:
+            headers["X-EXTERNAL-JWT"] = self.external_jwt
+            
         return headers
 
     def _request(self, method: str, path: str, **kwargs) -> Any:
@@ -67,7 +74,7 @@ class LBSClient:
             return None
         return response.json()
 
-    # --- Authentication Methods ---
+    # --- Authentication & API Keys ---
 
     def login(self, username_or_email: str, password: str) -> str:
         """
@@ -78,8 +85,6 @@ class LBSClient:
             "username_or_email": username_or_email,
             "password": password
         }
-        # Login is usually under /auth/login
-        # Our base_url is /api/lbs, but the route is /auth/login
         data = self._request("POST", "auth/login", json=payload)
         self.token = data.get("access_token")
         return self.token
@@ -87,6 +92,56 @@ class LBSClient:
     def verify_identity(self) -> Dict:
         """Verify current identity status (/auth/me)"""
         return self._request("GET", "auth/me")
+
+    def get_full_identity_debug(self) -> Dict:
+        """Debug endpoint to show resolved identity (local, external, or api_key)."""
+        return self._request("GET", "auth/identity")
+
+    def confirm_link_external(self) -> Dict:
+        """
+        Link a verified External System JWT identity (from X-EXTERNAL-JWT header) 
+        to the currently logged-in local LBS account.
+        """
+        return self._request("POST", "auth/link/confirm")
+
+    def provision_api_key(self, rotate: bool = False, scopes: List[str] = ["read"]) -> Dict:
+        """
+        Provision an API key for a specific external integration client.
+        """
+        payload = {"rotate": rotate, "scopes": scopes}
+        return self._request("POST", "auth/api-keys/provision", json=payload)
+
+    def create_api_key(self, client_id: str, scopes: List[str] = ["read"], expires_in_days: Optional[int] = None) -> Dict:
+        """Create a user-managed API key."""
+        payload = {
+            "client_id": client_id,
+            "scopes": scopes,
+            "expires_in_days": expires_in_days
+        }
+        return self._request("POST", "auth/api-keys", json=payload)
+
+    def list_api_keys(self) -> List[Dict]:
+        """List metadata for all API keys belonging to the current user."""
+        return self._request("GET", "auth/api-keys")
+
+    def revoke_api_key(self, key_id: str) -> Dict:
+        """Revoke an API key."""
+        return self._request("DELETE", f"auth/api-keys/{key_id}")
+
+    # --- User Management ---
+
+    def create_user(self, email: str, name: Optional[str] = None, password: Optional[str] = None) -> Dict:
+        """Create a new local user account."""
+        payload = {
+            "email": email,
+            "name": name,
+            "password": password
+        }
+        return self._request("POST", "users/", json=payload)
+
+    def get_user_me(self) -> Dict:
+        """Get full profile details for current user."""
+        return self._request("GET", "users/me")
 
     # --- Task Operations ---
 
