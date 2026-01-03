@@ -30,8 +30,6 @@ class Task(Base):
     task_name = Column(String, nullable=False)
     context = Column(String, nullable=False)
     base_load_score = Column(Float, nullable=False)
-    active = Column(Boolean, default=True)
-    status = Column(String, default=TaskStatus.TODO.value)
     rule_type = Column(String, nullable=False)
     due_date = Column(Date, nullable=True)
     mon = Column(Boolean, default=False)
@@ -88,13 +86,16 @@ if settings.DATABASE_URL.startswith("sqlite"):
 engine = create_engine(settings.DATABASE_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-class TaskCompletion(Base):
-    """History of task completions for specific dates"""
-    __tablename__ = "task_completions"
+class TaskExecution(Base):
+    """History of task executions and their outcomes"""
+    __tablename__ = "task_executions"
     id = Column(Integer, primary_key=True)
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
     task_id = Column(String, ForeignKey("tasks.task_id"), nullable=False, index=True)
-    completed_date = Column(Date, nullable=False, index=True)
+    target_date = Column(Date, nullable=False, index=True)
+    status = Column(String, default="done") # e.g., "done", "skipped", "in_progress"
+    progress = Column(Integer, default=100)
+    actual_time = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 def get_db():

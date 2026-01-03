@@ -64,7 +64,7 @@ class TaskUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
-    status: Optional[TaskStatus] = None
+    notes: Optional[str] = None
 
 class TaskBulkDelete(BaseModel):
     task_ids: List[str]
@@ -73,8 +73,8 @@ class TaskBulkActiveUpdate(BaseModel):
     task_ids: List[str]
     active: bool
 
-class TaskCompletionRequest(BaseModel):
-    completed_date: date
+class TaskExecutionRequest(BaseModel):
+    target_date: date
     status: bool = True
 
 class TaskResponse(TaskBase):

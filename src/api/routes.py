@@ -9,7 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.database import get_db, User, Task, TaskException, LBSDailyCache, TaskStatus, TaskCompletion
+from ..models.database import get_db, User, Task, TaskException, LBSDailyCache, TaskStatus, TaskExecution
 from ..models.user import User as DBUser
 from ..services.lbs_engine import LBSEngine
 from ..auth import require_local_user, require_user_identity, Identity
@@ -22,7 +22,7 @@ from .schemas import (
     DashboardResponse,
     TaskBulkDelete,
     TaskBulkActiveUpdate,
-    TaskCompletionRequest
+    TaskExecutionRequest
 )
 
 router = APIRouter(tags=["LBS"])
@@ -99,29 +99,46 @@ def list_tasks(
     db: Session = Depends(get_db)
 ):
     query = db.query(Task).filter(Task.user_id == identity.user_id)
-    query = db.query(Task).filter(Task.user_id == identity.user_id)
     if active is not None:
         query = query.filter(Task.active == active)
-    if status:
-        query = query.filter(Task.status == status)
     if context:
         query = query.filter(Task.context == context)
     
     tasks = query.all()
-    
-    # Enrich tasks with current completion status from history
-    # For ONCE tasks, check due_date. For others, check today.
+    if not tasks:
+        return []
+
+    # Batch Fetching Executions to resolve N+1
     today = date.today()
+    task_ids = [t.task_id for t in tasks]
+    
+    # We optimize by fetching executions for today or relevant due dates in one go
+    target_dates = {today}
+    for t in tasks:
+        if t.due_date:
+            target_dates.add(t.due_date)
+    
+    executions = db.query(TaskExecution).filter(
+        TaskExecution.task_id.in_(task_ids),
+        TaskExecution.target_date.in_(list(target_dates))
+    ).all()
+    
+    # Create an efficient lookup map
+    exec_map = {(e.task_id, e.target_date): e.status for e in executions}
+    
+    # Enrich and optionally filter in memory
+    enriched_tasks = []
     for task in tasks:
         target_date = task.due_date if task.rule_type == "ONCE" else today
-        if target_date:
-            is_completed = db.query(TaskCompletion).filter(
-                TaskCompletion.task_id == task.task_id,
-                TaskCompletion.completed_date == target_date
-            ).first() is not None
-            task.status = TaskStatus.DONE if is_completed else TaskStatus.TODO
+        current_status = exec_map.get((task.task_id, target_date), "todo")
+        task.status = current_status
+        
+        # Apply status filter if provided
+        if status and task.status != status:
+            continue
+        enriched_tasks.append(task)
     
-    return tasks
+    return enriched_tasks
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task_detail(
@@ -219,8 +236,7 @@ def upload_tasks_csv(
                 weekday_mon1=int(row['weekday_mon1']) if row.get('weekday_mon1') and row['weekday_mon1'].strip() else None,
                 start_date=date.fromisoformat(row['start_date']) if row.get('start_date') and row['start_date'].strip() else None,
                 end_date=date.fromisoformat(row['end_date']) if row.get('end_date') and row['end_date'].strip() else None,
-                notes=row.get('notes'),
-                status=TaskStatus(row.get('status', 'todo').lower())
+                notes=row.get('notes')
             )
             
             if db_task.start_date and db_task.start_date < min_start: min_start = db_task.start_date
@@ -318,9 +334,9 @@ def bulk_update_active(
     return {"message": f"Successfully updated active status for {count} tasks"}
 
 @router.post("/tasks/{task_id}/complete")
-def complete_task_instance(
+def handle_task_completion(
     task_id: str,
-    req: TaskCompletionRequest,
+    req: TaskExecutionRequest,
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -329,21 +345,26 @@ def complete_task_instance(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Check if a completion already exists for this date
-    existing = db.query(TaskCompletion).filter(
-        TaskCompletion.task_id == task_id,
-        TaskCompletion.completed_date == req.completed_date
+    # Check if an execution already exists for this date
+    existing = db.query(TaskExecution).filter(
+        TaskExecution.task_id == task_id,
+        TaskExecution.target_date == req.target_date
     ).first()
 
-    if req.status:
+    if req.status: # status=True means mark as done
         if not existing:
-            new_completion = TaskCompletion(
+            new_exec = TaskExecution(
                 user_id=identity.user_id,
                 task_id=task_id,
-                completed_date=req.completed_date
+                target_date=req.target_date,
+                status="done",
+                progress=100
             )
-            db.add(new_completion)
-    else:
+            db.add(new_exec)
+        else:
+            existing.status = "done"
+            existing.progress = 100
+    else: # status=False means undo (delete execution record)
         if existing:
             db.delete(existing)
 
@@ -351,9 +372,9 @@ def complete_task_instance(
     
     # Trigger narrow re-expansion for that specific day
     engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(req.completed_date, req.completed_date)
+    engine.expand_tasks(req.target_date, req.target_date)
 
-    return {"message": "Task completion updated", "status": req.status}
+    return {"message": "Task execution updated", "status": req.status}
 
 @router.post("/exceptions")
 def create_exception(

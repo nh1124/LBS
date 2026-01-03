@@ -184,7 +184,7 @@ const TaskManager = ({ token, apiKey }) => {
             }
 
             await api.post(`/tasks/${task.task_id}/complete`, {
-                completed_date: targetDate,
+                target_date: targetDate,
                 status: !isCurrentlyDone
             });
 

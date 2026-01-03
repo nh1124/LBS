@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskStatus, TaskCompletion
+from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskExecution
 from ..config import settings
 
 class LBSEngine:
@@ -57,13 +57,13 @@ class LBSEngine:
         
         exceptions_dict = {(exc.task_id, exc.target_date): exc for exc in exceptions_query}
         
-        # Load completion history
-        completions_query = self.session.query(TaskCompletion).filter(
-            TaskCompletion.user_id == self.user_id,
-            TaskCompletion.completed_date >= start_date,
-            TaskCompletion.completed_date <= end_date
+        # Load execution history
+        executions_query = self.session.query(TaskExecution).filter(
+            TaskExecution.user_id == self.user_id,
+            TaskExecution.target_date >= start_date,
+            TaskExecution.target_date <= end_date
         ).all()
-        completions_dict = {(c.task_id, c.completed_date): True for c in completions_query}
+        executions_dict = {(e.task_id, e.target_date): e for e in executions_query}
 
         cache_entries = []
         
@@ -74,13 +74,13 @@ class LBSEngine:
             if task.rule_type == "ONCE":
                 # Regular occurrence
                 if task.due_date and start_date <= task.due_date <= end_date:
-                    self._process_day(task, task.due_date, exceptions_dict, cache_entries, completions_dict, force_check=False)
+                    self._process_day(task, task.due_date, exceptions_dict, cache_entries, executions_dict, force_check=False)
                 
                 # Check for FORCE_DO exceptions on other dates
                 for (t_id, d), exc in exceptions_dict.items():
                     if t_id == task.task_id and exc.exception_type == "FORCE_DO":
                         if d != task.due_date: # Don't double process
-                            self._process_day(task, d, exceptions_dict, cache_entries, completions_dict, force_check=True)
+                            self._process_day(task, d, exceptions_dict, cache_entries, executions_dict, force_check=True)
                 continue
 
             # Recurring tasks
@@ -91,11 +91,11 @@ class LBSEngine:
                 if occurs:
                     # Normal occurrence, check for SKIP
                     if not (exception and exception.exception_type == "SKIP"):
-                        self._process_day(task, current_date, exceptions_dict, cache_entries, completions_dict, force_check=False)
+                        self._process_day(task, current_date, exceptions_dict, cache_entries, executions_dict, force_check=False)
                 else:
                     # No normal occurrence, check for FORCE_DO
                     if exception and exception.exception_type == "FORCE_DO":
-                        self._process_day(task, current_date, exceptions_dict, cache_entries, completions_dict, force_check=True)
+                        self._process_day(task, current_date, exceptions_dict, cache_entries, executions_dict, force_check=True)
                 
                 current_date += timedelta(days=1)
         
@@ -109,7 +109,7 @@ class LBSEngine:
         
         logger.info(f"[LBS Engine] Expanded {len(cache_entries)} entries for user {self.user_id} in {time.time() - start_time:.3f}s")
 
-    def _process_day(self, task, day_date, exceptions_dict, cache_entries, completions_dict, force_check=False):
+    def _process_day(self, task, day_date, exceptions_dict, cache_entries, executions_dict, force_check=False):
         # Implementation moved logic out to allow FORCE_DO check
         exception = exceptions_dict.get((task.task_id, day_date))
         
@@ -119,8 +119,9 @@ class LBSEngine:
         elif exception and exception.exception_type == "FORCE_DO" and exception.override_load_value is not None:
              load = exception.override_load_value
             
-        # Completion check: History only (Master status is no longer source of truth for completion)
-        is_completed = completions_dict.get((task.task_id, day_date))
+        # Execution check: Source of Truth for completion
+        execution = executions_dict.get((task.task_id, day_date))
+        is_completed = execution and execution.status == "done"
 
         cache_entries.append(LBSDailyCache(
             user_id=self.user_id,
