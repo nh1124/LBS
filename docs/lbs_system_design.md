@@ -173,7 +173,6 @@ For each date in [start_date, end_date]:
     
     3. Completion & Exception Check
        - IF exists in `task_completions` for `target_date`: status = "completed"
-       - ELSE IF task.status == DONE: status = "completed" (Master Override)
        - ELSE: status = "planned"
        
        - Exception: IF `task_exceptions` for `target_date` is `omit`: status = "skipped"

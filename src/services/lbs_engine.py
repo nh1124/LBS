@@ -119,8 +119,8 @@ class LBSEngine:
         elif exception and exception.exception_type == "FORCE_DO" and exception.override_load_value is not None:
              load = exception.override_load_value
             
-        # Completion check: History OR Master Status (for ONCE tasks or legacy)
-        is_completed = completions_dict.get((task.task_id, day_date)) or task.status == TaskStatus.DONE
+        # Completion check: History only (Master status is no longer source of truth for completion)
+        is_completed = completions_dict.get((task.task_id, day_date))
 
         cache_entries.append(LBSDailyCache(
             user_id=self.user_id,

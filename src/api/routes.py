@@ -99,13 +99,29 @@ def list_tasks(
     db: Session = Depends(get_db)
 ):
     query = db.query(Task).filter(Task.user_id == identity.user_id)
+    query = db.query(Task).filter(Task.user_id == identity.user_id)
     if active is not None:
         query = query.filter(Task.active == active)
     if status:
         query = query.filter(Task.status == status)
     if context:
         query = query.filter(Task.context == context)
-    return query.all()
+    
+    tasks = query.all()
+    
+    # Enrich tasks with current completion status from history
+    # For ONCE tasks, check due_date. For others, check today.
+    today = date.today()
+    for task in tasks:
+        target_date = task.due_date if task.rule_type == "ONCE" else today
+        if target_date:
+            is_completed = db.query(TaskCompletion).filter(
+                TaskCompletion.task_id == task.task_id,
+                TaskCompletion.completed_date == target_date
+            ).first() is not None
+            task.status = TaskStatus.DONE if is_completed else TaskStatus.TODO
+    
+    return tasks
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task_detail(

@@ -175,18 +175,22 @@ const TaskManager = ({ token, apiKey }) => {
 
     const handleToggleStatus = async (task) => {
         try {
-            const newStatus = task.status === 'todo' ? 'done' : 'todo';
-            // Update master status
-            await api.put(`/tasks/${task.task_id}`, { status: newStatus });
+            const isCurrentlyDone = task.status === 'done';
+            const targetDate = task.rule_type === 'ONCE' ? task.due_date : new Date().toISOString().split('T')[0];
 
-            // For recurring tasks, we notify that this affects all instances
-            if (task.rule_type !== 'ONCE' && newStatus === 'done') {
-                console.log("Note: Master status 'done' for recurring tasks marks all future instances as completed.");
+            if (!targetDate) {
+                alert("Cannot toggle status for a task without a date.");
+                return;
             }
+
+            await api.post(`/tasks/${task.task_id}/complete`, {
+                completed_date: targetDate,
+                status: !isCurrentlyDone
+            });
 
             fetchTasks();
         } catch (err) {
-            alert("Error toggling status: " + err.message);
+            alert("Error toggling status: " + (err.response?.data?.detail || err.message));
         }
     };
 
