@@ -3,8 +3,11 @@ from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from calendar import monthrange
 import time
+import logging
 
-from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig
+logger = logging.getLogger(__name__)
+
+from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskStatus
 from ..config import settings
 
 class LBSEngine:
@@ -96,7 +99,7 @@ class LBSEngine:
         # Update overflow flags
         self._update_overflow_flags(start_date, end_date)
         
-        print(f"[LBS Engine] Expanded {len(cache_entries)} entries for user {self.user_id} in {time.time() - start_time:.3f}s")
+        logger.info(f"[LBS Engine] Expanded {len(cache_entries)} entries for user {self.user_id} in {time.time() - start_time:.3f}s")
 
     def _process_day(self, task, day_date, exceptions_dict, cache_entries, force_check=False):
         # Implementation moved logic out to allow FORCE_DO check
@@ -113,7 +116,7 @@ class LBSEngine:
             target_date=day_date,
             task_id=task.task_id,
             calculated_load=load,
-            status="planned"
+            status="completed" if task.status == TaskStatus.DONE else "planned"
         ))
 
     def _should_task_occur(self, task: Task, target_date: date) -> bool:
@@ -147,17 +150,22 @@ class LBSEngine:
         
         return False
 
-    def calculate_daily_load(self, target_date: date) -> Dict:
+    def calculate_daily_load(self, target_date: date, include_completed: bool = True) -> Dict:
         alpha = self.config["ALPHA"]
         beta = self.config["BETA"]
         switch_cost = self.config["SWITCH_COST"]
         cap = self.config["CAP"]
         
-        cache_entries = self.session.query(LBSDailyCache).filter(
+        query = self.session.query(LBSDailyCache).filter(
             LBSDailyCache.user_id == self.user_id,
             LBSDailyCache.target_date == target_date,
             LBSDailyCache.status != "skipped"
-        ).all()
+        )
+        
+        if not include_completed:
+            query = query.filter(LBSDailyCache.status != "completed")
+            
+        cache_entries = query.all()
         
         if not cache_entries:
             return {
@@ -219,11 +227,11 @@ class LBSEngine:
             current += timedelta(days=1)
         self.session.commit()
 
-    def get_weekly_stats(self, start_date: date) -> Dict:
+    def get_weekly_stats(self, start_date: date, include_completed: bool = True) -> Dict:
         daily_loads = []
         for i in range(7):
             day = start_date + timedelta(days=i)
-            daily_loads.append(self.calculate_daily_load(day)["adjusted_load"])
+            daily_loads.append(self.calculate_daily_load(day, include_completed=include_completed)["adjusted_load"])
         
         avg = sum(daily_loads) / 7
         recovery_days = sum(1 for l in daily_loads if l < 4.0)
@@ -232,7 +240,7 @@ class LBSEngine:
             "recovery_rate": round((recovery_days / 7) * 100, 1)
         }
 
-    def get_trend_data(self, weeks: int = 12, start_date: Optional[date] = None) -> List[Dict]:
+    def get_trend_data(self, weeks: int = 12, start_date: Optional[date] = None, include_completed: bool = True) -> List[Dict]:
         """Get average and max load per week for trend analysis"""
         if not start_date:
             end_date = date.today()
@@ -249,7 +257,7 @@ class LBSEngine:
             
             curr = current_week_start
             while curr <= week_end and curr <= end_date:
-                daily = self.calculate_daily_load(curr)
+                daily = self.calculate_daily_load(curr, include_completed=include_completed)
                 week_loads.append(daily["adjusted_load"])
                 curr += timedelta(days=1)
                 
@@ -264,17 +272,22 @@ class LBSEngine:
             
         return trends
 
-    def get_context_distribution(self, start: date, end: date) -> List[Dict]:
+    def get_context_distribution(self, start: date, end: date, include_completed: bool = True) -> List[Dict]:
         """Get load grouped by context (spoke) for each day"""
         distribution = {}
         
         curr = start
         while curr <= end:
-            cache_entries = self.session.query(LBSDailyCache).filter(
+            query = self.session.query(LBSDailyCache).filter(
                 LBSDailyCache.user_id == self.user_id,
                 LBSDailyCache.target_date == curr,
                 LBSDailyCache.status != "skipped"
-            ).all()
+            )
+            
+            if not include_completed:
+                query = query.filter(LBSDailyCache.status != "completed")
+                
+            cache_entries = query.all()
             
             if cache_entries:
                 date_str = str(curr)

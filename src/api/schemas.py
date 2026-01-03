@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import date, datetime
+from ..models.database import TaskStatus
 
 class UserCreate(BaseModel):
     email: str
@@ -36,6 +37,7 @@ class TaskBase(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
+    status: Optional[TaskStatus] = TaskStatus.TODO
 
 class TaskCreate(TaskBase):
     pass
@@ -62,6 +64,7 @@ class TaskUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
+    status: Optional[TaskStatus] = None
 
 class TaskBulkDelete(BaseModel):
     task_ids: List[str]

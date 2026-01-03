@@ -362,6 +362,38 @@ const TaskManager = ({ token, apiKey }) => {
                                     />
                                 </div>
                             )}
+
+                            {formData.rule_type === 'EVERY_N_DAYS' && (
+                                <div className="grid grid-cols-2 gap-4 col-span-2">
+                                    <div>
+                                        <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Interval (Days)</label>
+                                        <input
+                                            type="number" min="1" required className="w-full"
+                                            value={formData.interval_days || 1}
+                                            onChange={e => setFormData({ ...formData, interval_days: parseInt(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Anchor Date</label>
+                                        <input
+                                            type="date" required className="w-full"
+                                            value={formData.anchor_date || ''}
+                                            onChange={e => setFormData({ ...formData, anchor_date: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {formData.rule_type === 'MONTHLY_DAY' && (
+                                <div className="col-span-2">
+                                    <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Day of Month (1-31)</label>
+                                    <input
+                                        type="number" min="1" max="31" required className="w-full"
+                                        value={formData.month_day || 1}
+                                        onChange={e => setFormData({ ...formData, month_day: parseInt(e.target.value) })}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex gap-4 pt-4 border-t border-white/5">

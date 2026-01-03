@@ -1,9 +1,14 @@
 from sqlalchemy import Column, String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, create_engine
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
+import enum
 from .user import Base, User, APIKey
 from .external_identity import ExternalIdentity
 from ..config import settings
+
+class TaskStatus(str, enum.Enum):
+    TODO = "todo"
+    DONE = "done"
 
 class SystemConfig(Base):
     """User-specific LBS configuration"""
@@ -26,6 +31,7 @@ class Task(Base):
     context = Column(String, nullable=False)
     base_load_score = Column(Float, nullable=False)
     active = Column(Boolean, default=True)
+    status = Column(String, default=TaskStatus.TODO.value)
     rule_type = Column(String, nullable=False)
     due_date = Column(Date, nullable=True)
     mon = Column(Boolean, default=False)

@@ -5,8 +5,13 @@ from typing import List, Optional
 import uuid
 import csv
 import io
+import logging
 
-from ..models.database import get_db, User, Task, TaskException, LBSDailyCache
+logger = logging.getLogger(__name__)
+
+logger = logging.getLogger(__name__)
+
+from ..models.database import get_db, User, Task, TaskException, LBSDailyCache, TaskStatus
 from ..models.user import User as DBUser
 from ..services.lbs_engine import LBSEngine
 from ..auth import require_local_user, require_user_identity, Identity
@@ -38,12 +43,12 @@ def get_dashboard(
     
     engine = LBSEngine(db, identity.user_id)
     
-    today = engine.calculate_daily_load(date.today())
-    weekly = engine.get_weekly_stats(start_date)
+    today = engine.calculate_daily_load(date.today(), include_completed=True) # Always include for today's snapshot
+    weekly = engine.get_weekly_stats(start_date, include_completed=True)
     
     daily_breakdown = []
     for i in range(7):
-        daily_breakdown.append(engine.calculate_daily_load(start_date + timedelta(days=i)))
+        daily_breakdown.append(engine.calculate_daily_load(start_date + timedelta(days=i), include_completed=True))
         
     return {
         "today": today,
@@ -59,8 +64,7 @@ def create_task(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    print(f"[DEBUG LBS] Creating task for user {identity.user_id}")
-    print(f"[DEBUG LBS] task_in: {task_in.dict()}")
+    logger.info(f"[LBS] Creating task for user {identity.user_id}")
     task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
     try:
         db_task = Task(
@@ -71,31 +75,35 @@ def create_task(
         db.add(db_task)
         db.commit()
         db.refresh(db_task)
-        print(f"[DEBUG LBS] Task {task_id} created in DB")
+        logger.info(f"[LBS] Task {task_id} created in DB")
         
         # Trigger expansion for range
         engine = LBSEngine(db, identity.user_id)
         expand_start = db_task.start_date or date.today()
         expand_end = db_task.end_date or (date.today() + timedelta(days=90))
-        print(f"[DEBUG LBS] Expanding tasks from {expand_start} to {expand_end}")
+        logger.info(f"[LBS] Expanding tasks from {expand_start} to {expand_end}")
         engine.expand_tasks(expand_start, expand_end)
-        print(f"[DEBUG LBS] Expansion complete")
+        logger.info(f"[LBS] Expansion complete")
         
         return db_task
     except Exception as e:
-        print(f"[DEBUG LBS] Error creating task: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[LBS] Error creating task: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tasks", response_model=List[TaskResponse])
 def list_tasks(
     context: Optional[str] = None,
+    status: Optional[TaskStatus] = None,
+    active: bool = Query(True),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     query = db.query(Task).filter(Task.user_id == identity.user_id)
+    if active is not None:
+        query = query.filter(Task.active == active)
+    if status:
+        query = query.filter(Task.status == status)
     if context:
         query = query.filter(Task.context == context)
     return query.all()
@@ -196,7 +204,8 @@ def upload_tasks_csv(
                 weekday_mon1=int(row['weekday_mon1']) if row.get('weekday_mon1') and row['weekday_mon1'].strip() else None,
                 start_date=date.fromisoformat(row['start_date']) if row.get('start_date') and row['start_date'].strip() else None,
                 end_date=date.fromisoformat(row['end_date']) if row.get('end_date') and row['end_date'].strip() else None,
-                notes=row.get('notes')
+                notes=row.get('notes'),
+                status=TaskStatus(row.get('status', 'todo').lower())
             )
             
             if db_task.start_date and db_task.start_date < min_start: min_start = db_task.start_date
@@ -207,7 +216,7 @@ def upload_tasks_csv(
             raise
         except Exception as e:
             # Log other parsing errors (like float conversion) and continue
-            print(f"Error parsing row: {e}")
+            logger.warning(f"Error parsing row: {e}")
             continue
 
     if not tasks_to_create and reader.line_num > 1:
@@ -320,11 +329,12 @@ def create_exception(
 @router.get("/calculate/{target_date}")
 def calculate_load(
     target_date: date,
+    include_completed: bool = Query(True),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
-    return engine.calculate_daily_load(target_date)
+    return engine.calculate_daily_load(target_date, include_completed=include_completed)
 
 @router.post("/expand")
 def expand_tasks(
@@ -341,6 +351,7 @@ def expand_tasks(
 def get_heatmap(
     start: date,
     end: date,
+    include_completed: bool = Query(True),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -349,14 +360,14 @@ def get_heatmap(
     engine.expand_tasks(start, end)
     
     if hasattr(engine, 'get_heatmap_data'):
-        return engine.get_heatmap_data(start, end)
-    return get_heatmap_legacy(engine, start, end)
+        return engine.get_heatmap_data(start, end, include_completed=include_completed)
+    return get_heatmap_legacy(engine, start, end, include_completed=include_completed)
 
-def get_heatmap_legacy(engine, start, end):
+def get_heatmap_legacy(engine, start, end, include_completed=True):
     data = []
     curr = start
     while curr <= end:
-        load = engine.calculate_daily_load(curr)
+        load = engine.calculate_daily_load(curr, include_completed=include_completed)
         data.append({
             "date": str(curr),
             "adjusted_load": load["adjusted_load"],
@@ -370,18 +381,20 @@ def get_heatmap_legacy(engine, start, end):
 def get_trends(
     weeks: int = 12,
     start_date: Optional[date] = None,
+    include_completed: bool = Query(True),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
-    return {"trends": engine.get_trend_data(weeks, start_date)}
+    return {"trends": engine.get_trend_data(weeks, start_date, include_completed=include_completed)}
 
 @router.get("/context-distribution")
 def get_context_distribution(
     start: date,
     end: date,
+    include_completed: bool = Query(True),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     engine = LBSEngine(db, identity.user_id)
-    return {"distribution": engine.get_context_distribution(start, end)}
+    return {"distribution": engine.get_context_distribution(start, end, include_completed=include_completed)}

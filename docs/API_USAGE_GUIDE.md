@@ -142,25 +142,25 @@ All endpoints are prefixed with `/api/lbs`.
 ### Task Operations (`/tasks`)
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/tasks` | GET | List your tasks (supports `context` filter) |
-| `/tasks` | POST | Create a single LBS task |
+| `/tasks` | GET | List tasks. Query: `context`, `status` (todo/done), `active` (bool) |
+| `/tasks` | POST | Create a single task. (Supports `status`: todo/done) |
 | `/tasks/{id}` | GET | Get detailed task information |
-| `/tasks/{id}` | PUT | Update an existing task |
+| `/tasks/{id}` | PUT | Update an existing task. (Allows changing `status`) |
 | `/tasks/{id}` | DELETE | Delete a task |
 | `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
 | `/tasks/bulk-update-status` | POST | Update active status for multiple tasks |
-| `/tasks/upload-csv` | POST | Bulk import tasks via CSV file |
+| `/tasks/upload-csv` | POST | Bulk import tasks via CSV. (Recognizes `status` column) |
 
 
 ### Load Analysis & Insights
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/dashboard` | GET | Summary of current load and next-day predictions |
-| `/heatmap` | GET | Daily load distribution for a specific date range |
-| `/trends` | GET | Multi-week load trend predictions (up to 12 weeks) |
-| `/distribution/context` | GET | Load distribution grouped by task context |
-| `/load` | GET | Get raw load calculation for a specific date |
-| `/expand` | GET | Force trigger task expansion for a range |
+| `/heatmap` | GET | Daily load distribution. Parameter: `include_completed` (bool) |
+| `/trends` | GET | Multi-week load trend predictions. Parameter: `include_completed` (bool) |
+| `/distribution/context` | GET | Load distribution grouped by task context. Parameter: `include_completed` (bool) |
+| `/calculate/{target_date}` | GET | Raw load calculation for a date. Parameter: `include_completed` (bool) |
+| `/expand` | POST | Force trigger task expansion for a range |
 | `/exceptions` | POST | Register a task exception (e.g. absence, priority shift) |
 
 ### System

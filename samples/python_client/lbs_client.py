@@ -1,7 +1,13 @@
 import requests
 import os
 from datetime import date, datetime
+import enum
 from typing import List, Optional, Dict, Any, Union
+
+class TaskStatus(str, enum.Enum):
+    """Possible statuses for an LBS task."""
+    TODO = "todo"
+    DONE = "done"
 
 class LBSClient:
     """
@@ -145,11 +151,21 @@ class LBSClient:
 
     # --- Task Operations ---
 
-    def list_tasks(self, context: Optional[str] = None) -> List[Dict]:
-        """List tasks, optionally filtered by context."""
+    def list_tasks(self, context: Optional[str] = None, status: Optional[Union[str, TaskStatus]] = None, active: Optional[bool] = None) -> List[Dict]:
+        """
+        List tasks, optionally filtered by context, status, and active flag.
+        
+        :param context: Filter by task context string.
+        :param status: Filter by task status (e.g., 'todo', 'done' or TaskStatus enum).
+        :param active: Filter by active status (True/False).
+        """
         params = {}
         if context:
             params["context"] = context
+        if status:
+            params["status"] = status.value if isinstance(status, TaskStatus) else status
+        if active is not None:
+            params["active"] = str(active).lower()
         return self._request("GET", "tasks", params=params)
 
     def get_task(self, task_id: str) -> Dict:
@@ -176,6 +192,11 @@ class LBSClient:
         """Update active status for multiple tasks."""
         return self._request("POST", "tasks/bulk-update-status", json={"task_ids": task_ids, "active": active})
 
+    def update_task_progress(self, task_id: str, status: Union[str, TaskStatus]) -> Dict:
+        """Update the progress status of a task (e.g., 'todo', 'done')."""
+        status_val = status.value if isinstance(status, TaskStatus) else status
+        return self.update_task(task_id, {"status": status_val})
+
     def upload_csv(self, file_path: str) -> Dict:
         """Bulk import tasks via CSV file."""
         with open(file_path, 'rb') as f:
@@ -197,33 +218,36 @@ class LBSClient:
             params["start_date"] = start_date.isoformat() if isinstance(start_date, date) else start_date
         return self._request("GET", "dashboard", params=params)
 
-    def get_heatmap(self, start: Union[date, str], end: Union[date, str]) -> List[Dict]:
+    def get_heatmap(self, start: Union[date, str], end: Union[date, str], include_completed: bool = True) -> List[Dict]:
         """Get daily load distribution."""
         params = {
             "start": start.isoformat() if isinstance(start, date) else start,
-            "end": end.isoformat() if isinstance(end, date) else end
+            "end": end.isoformat() if isinstance(end, date) else end,
+            "include_completed": str(include_completed).lower()
         }
         return self._request("GET", "heatmap", params=params)
 
-    def get_trends(self, weeks: int = 12, start_date: Optional[Union[date, str]] = None) -> Dict:
+    def get_trends(self, weeks: int = 12, start_date: Optional[Union[date, str]] = None, include_completed: bool = True) -> Dict:
         """Get multi-week load trend predictions."""
-        params = {"weeks": weeks}
+        params = {"weeks": weeks, "include_completed": str(include_completed).lower()}
         if start_date:
             params["start_date"] = start_date.isoformat() if isinstance(start_date, date) else start_date
         return self._request("GET", "trends", params=params)
 
-    def get_context_distribution(self, start: Union[date, str], end: Union[date, str]) -> Dict:
+    def get_context_distribution(self, start: Union[date, str], end: Union[date, str], include_completed: bool = True) -> Dict:
         """Get load distribution grouped by task context."""
         params = {
             "start": start.isoformat() if isinstance(start, date) else start,
-            "end": end.isoformat() if isinstance(end, date) else end
+            "end": end.isoformat() if isinstance(end, date) else end,
+            "include_completed": str(include_completed).lower()
         }
         return self._request("GET", "context-distribution", params=params)
 
-    def calculate_load(self, target_date: Union[date, str]) -> Dict:
+    def calculate_load(self, target_date: Union[date, str], include_completed: bool = True) -> Dict:
         """Get raw load calculation for a specific date."""
         target = target_date.isoformat() if isinstance(target_date, date) else target_date
-        return self._request("GET", f"calculate/{target}")
+        params = {"include_completed": str(include_completed).lower()}
+        return self._request("GET", f"calculate/{target}", params=params)
 
     def force_expand(self, start_date: Union[date, str], end_date: Union[date, str]) -> Dict:
         """Force trigger task expansion for a range."""

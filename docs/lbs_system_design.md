@@ -109,6 +109,7 @@ erDiagram
 | `context` | String | Project/Spoke tag |
 | `base_load_score` | Float | 0.0 – 10.0 |
 | `active` | Boolean | Enabled flag |
+| `status` | Enum | Task progress (`todo`, `done`) |
 | `rule_type` | Enum | Recurrence type |
 | `due_date` | Date | For ONCE tasks |
 | `mon`–`sun` | Boolean | Weekday flags (WEEKLY) |
@@ -164,6 +165,8 @@ For each date in [start_date, end_date]:
        - OVERRIDE_LOAD → use exception's load value
     
     4. Create LBSDailyCache entry with user_id
+       - If task.status == DONE, cache.status = "completed"
+       - Else, cache.status = "planned"
 ```
 ### 5.3 Load Calculation Formula
 $$
@@ -200,15 +203,16 @@ $$
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/lbs/dashboard` | Weekly dashboard with KPIs |
-| GET | `/api/lbs/calculate/{date}` | Daily load calculation |
+| GET | `/api/lbs/calculate/{date}` | Daily load calculation (supports `include_completed`) |
 | POST | `/api/lbs/expand` | Trigger rule expansion |
-| GET | `/api/lbs/tasks` | List user's tasks |
+| GET | `/api/lbs/tasks` | List user's tasks (supports `status`, `active`, `context`) |
 | GET | `/api/lbs/tasks/{id}` | Get task details |
 | POST | `/api/lbs/tasks` | Create task |
 | PUT | `/api/lbs/tasks/{id}` | Update task |
 | DELETE | `/api/lbs/tasks/{id}` | Delete task |
-| GET | `/api/lbs/heatmap` | Calendar heatmap |
-| GET | `/api/lbs/trends` | Weekly trends |
+| GET | `/api/lbs/heatmap` | Calendar heatmap (supports `include_completed`) |
+| GET | `/api/lbs/trends` | Weekly trends (supports `include_completed`) |
+| GET | `/api/lbs/context-distribution`| Context breakdown (supports `include_completed`) |
 ---
 ## 7. Project Structure
 ```
