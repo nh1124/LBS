@@ -148,7 +148,8 @@ All endpoints are prefixed with `/api/lbs`.
 | `/tasks/{id}` | PUT | Update an existing task. (Allows changing `status`) |
 | `/tasks/{id}` | DELETE | Delete a task |
 | `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
-| `/tasks/bulk-update-status` | POST | Update active status for multiple tasks |
+| `/tasks/bulk-update-active` | POST | Update active status (archive/unarchive) |
+| `/tasks/{id}/complete`| POST | Record completion for a specific date in history. Payload: `{completed_date: "YYYY-MM-DD", status: bool}` |
 | `/tasks/upload-csv` | POST | Bulk import tasks via CSV. (Recognizes `status` column) |
 
 

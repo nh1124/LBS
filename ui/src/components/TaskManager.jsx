@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
     Plus, Edit2, Trash2, Calendar, CheckCircle2, XCircle,
-    Menu, Filter, Search, Tag, Clock, ChevronDown, Upload, Download
+    Menu, Filter, Search, Tag, Clock, ChevronDown, Upload, Download,
+    Archive, RotateCcw, CheckCircle, Circle
 } from 'lucide-react';
 
-const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
+const TaskCard = ({ task, onEdit, onDelete, onToggleStatus, onToggleActive, isSelected, onSelect }) => {
     const getRuleLabel = (type) => {
         switch (type) {
             case 'WEEKLY': return 'Weekly';
@@ -16,8 +17,14 @@ const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
         }
     };
 
+    const isDone = task.status === 'done';
+    const isArchived = !task.active;
+
     return (
-        <div className={`glass-card p-5 flex items-center gap-6 group hover:border-white/10 transition-all ${isSelected ? 'border-blue-500/50 bg-blue-500/5' : ''}`}>
+        <div className={`glass-card p-5 flex items-center gap-6 group hover:border-white/10 transition-all 
+            ${isSelected ? 'border-blue-500/50 bg-blue-500/5' : ''} 
+            ${isArchived ? 'opacity-40 grayscale-[0.5]' : ''}`}>
+
             <div className="flex items-center">
                 <input
                     type="checkbox"
@@ -27,14 +34,22 @@ const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
                 />
             </div>
 
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${task.active ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-800 text-slate-500'}`}>
-                {task.base_load_score.toFixed(1)}
-            </div>
+            <button
+                onClick={() => onToggleStatus(task)}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold transition-all
+                    ${isDone ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/10'}`}
+                title={isDone ? "Mark as Todo" : "Mark as Done"}
+            >
+                {isDone ? <CheckCircle size={20} /> : task.base_load_score.toFixed(1)}
+            </button>
 
             <div className="flex-grow">
                 <div className="flex items-center gap-3 mb-1">
-                    <h4 className={`font-bold ${!task.active && 'text-slate-500 line-through'}`}>{task.task_name}</h4>
+                    <h4 className={`font-bold transition-all ${isDone ? 'text-emerald-400/70 line-through' : ''} ${isArchived ? 'text-slate-500 italic' : ''}`}>
+                        {task.task_name}
+                    </h4>
                     <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[10px] text-slate-400 uppercase tracking-widest font-bold">{task.context}</span>
+                    {isArchived && <span className="text-[10px] text-amber-500/80 font-bold uppercase tracking-tighter">[Archived]</span>}
                 </div>
                 <div className="flex gap-4 text-xs text-slate-500">
                     <div className="flex items-center gap-1"><Clock size={12} /> {getRuleLabel(task.rule_type)}</div>
@@ -43,8 +58,15 @@ const TaskCard = ({ task, onEdit, onDelete, isSelected, onSelect }) => {
             </div>
 
             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => onEdit(task)} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white"><Edit2 size={16} /></button>
-                <button onClick={() => onDelete(task.task_id)} className="p-2 hover:bg-red-500/10 rounded-lg text-slate-400 hover:text-red-400"><Trash2 size={16} /></button>
+                <button
+                    onClick={() => onToggleActive(task)}
+                    className={`p-2 rounded-lg transition-all ${isArchived ? 'hover:bg-blue-500/10 text-blue-400' : 'hover:bg-amber-500/10 text-slate-400 hover:text-amber-400'}`}
+                    title={isArchived ? "Unarchive Task" : "Archive Task"}
+                >
+                    {isArchived ? <RotateCcw size={16} /> : <Archive size={16} />}
+                </button>
+                <button onClick={() => onEdit(task)} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white" title="Edit Task"><Edit2 size={16} /></button>
+                <button onClick={() => onDelete(task.task_id)} className="p-2 hover:bg-red-500/10 rounded-lg text-slate-400 hover:text-red-400" title="Delete Task"><Trash2 size={16} /></button>
             </div>
         </div>
     );
@@ -58,11 +80,18 @@ const TaskManager = ({ token, apiKey }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, TODO, DONE
+    const [filterActive, setFilterActive] = useState('ACTIVE'); // ALL, ACTIVE, ARCHIVED
 
-    const filteredTasks = tasks.filter(t =>
-        t.task_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.context.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredTasks = tasks.filter(t => {
+        const matchesSearch = t.task_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.context.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = filterStatus === 'ALL' || t.status === filterStatus.toLowerCase();
+        const matchesActive = filterActive === 'ALL' ||
+            (filterActive === 'ACTIVE' && t.active) ||
+            (filterActive === 'ARCHIVED' && !t.active);
+        return matchesSearch && matchesStatus && matchesActive;
+    });
 
     // Form State
     const [formData, setFormData] = useState({
@@ -144,6 +173,44 @@ const TaskManager = ({ token, apiKey }) => {
         );
     };
 
+    const handleToggleStatus = async (task) => {
+        try {
+            const newStatus = task.status === 'todo' ? 'done' : 'todo';
+            // Update master status
+            await api.put(`/tasks/${task.task_id}`, { status: newStatus });
+
+            // For recurring tasks, we notify that this affects all instances
+            if (task.rule_type !== 'ONCE' && newStatus === 'done') {
+                console.log("Note: Master status 'done' for recurring tasks marks all future instances as completed.");
+            }
+
+            fetchTasks();
+        } catch (err) {
+            alert("Error toggling status: " + err.message);
+        }
+    };
+
+    const handleToggleActive = async (task) => {
+        try {
+            await api.put(`/tasks/${task.task_id}`, { active: !task.active });
+            fetchTasks();
+        } catch (err) {
+            alert("Error toggling active state: " + err.message);
+        }
+    };
+
+    const handleBulkArchive = async (active = false) => {
+        if (window.confirm(`${active ? 'Unarchive' : 'Archive'} ${selectedTaskIds.length} tasks?`)) {
+            try {
+                await api.post('/tasks/bulk-update-active', { task_ids: selectedTaskIds, active });
+                setSelectedTaskIds([]);
+                fetchTasks();
+            } catch (err) {
+                alert("Error during bulk operation: " + err.message);
+            }
+        }
+    };
+
     const handleSelectAll = (e) => {
         if (e.target.checked) {
             const allFilteredIds = filteredTasks.map(t => t.task_id);
@@ -155,18 +222,20 @@ const TaskManager = ({ token, apiKey }) => {
         }
     };
 
-    const handleExportCsv = () => {
-        const selectedTasks = tasks.filter(t => selectedTaskIds.includes(t.task_id));
-        if (selectedTasks.length === 0) return;
+    const handleExportCsv = (all = false) => {
+        const tasksToExport = all ? tasks : tasks.filter(t => selectedTaskIds.includes(t.task_id));
+        if (tasksToExport.length === 0) {
+            alert("No tasks to export.");
+            return;
+        }
 
-        // Include all task fields for complete backup (excluding task_id, user_id which are regenerated on import)
         const headers = [
-            "task_name", "context", "base_load_score", "rule_type", "active",
+            "task_name", "context", "base_load_score", "rule_type", "active", "status",
             "mon", "tue", "wed", "thu", "fri", "sat", "sun",
             "interval_days", "anchor_date", "month_day", "nth_in_month", "weekday_mon1",
             "start_date", "end_date", "due_date", "notes"
         ];
-        const rows = selectedTasks.map(t => headers.map(h => {
+        const csvContent = [headers.join(','), ...tasksToExport.map(t => headers.map(h => {
             const val = t[h];
             if (val === null || val === undefined) return "";
             // Escape strings containing commas or newlines
@@ -174,14 +243,13 @@ const TaskManager = ({ token, apiKey }) => {
                 return `"${val.replace(/"/g, '""')}"`;
             }
             return val;
-        }).join(','));
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
+        }).join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `lbs_tasks_export_${new Date().toISOString().split('T')[0]}.csv`);
+        const suffix = all ? 'all' : 'selected';
+        link.setAttribute("download", `lbs_tasks_${suffix}_${new Date().toISOString().split('T')[0]}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -218,21 +286,28 @@ const TaskManager = ({ token, apiKey }) => {
                     <p className="text-slate-400">Manage master tasks and scheduling rules.</p>
                 </div>
                 <div className="flex gap-3">
-                    {selectedTaskIds.length > 0 && (
+                    {selectedTaskIds.length > 0 ? (
                         <>
                             <button
-                                onClick={handleExportCsv}
-                                className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-emerald-500/20 transition-all"
+                                onClick={() => handleBulkArchive(false)}
+                                className="bg-amber-500/10 text-amber-500 border border-amber-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-amber-500/20 transition-all"
                             >
-                                <Download size={18} /> Export ({selectedTaskIds.length})
+                                <Archive size={18} /> Archive Selected
                             </button>
                             <button
                                 onClick={handleBulkDelete}
                                 className="bg-red-500/10 text-red-400 border border-red-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-red-500/20 transition-all"
                             >
-                                <Trash2 size={18} /> Delete ({selectedTaskIds.length})
+                                <Trash2 size={18} /> Delete Selected
                             </button>
                         </>
+                    ) : (
+                        <button
+                            onClick={() => handleExportCsv(true)}
+                            className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-emerald-500/20 transition-all font-mono"
+                        >
+                            <Download size={18} /> Export All
+                        </button>
                     )}
                     <label className={`p-3 px-5 glass-card flex items-center gap-2 text-sm font-bold cursor-pointer hover:bg-white/5 transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                         <Upload size={18} className="text-blue-400" />
@@ -248,21 +323,65 @@ const TaskManager = ({ token, apiKey }) => {
                 </div>
             </header>
 
-            <div className="flex gap-4 mb-4">
-                <div className="flex-grow relative">
+            <div className="flex flex-wrap gap-4 mb-4 items-center">
+                <div className="flex-grow min-w-[300px] relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <input
-                        className="w-full pl-12 bg-white/5 border-white/5"
+                        className="w-full pl-12 bg-white/5 border-white/5 h-12"
                         placeholder="Search tasks or contexts..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
+
+                <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 h-10 items-center">
+                    <button
+                        onClick={() => setFilterActive('ACTIVE')}
+                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterActive === 'ACTIVE' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        Active
+                    </button>
+                    <button
+                        onClick={() => setFilterActive('ARCHIVED')}
+                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterActive === 'ARCHIVED' ? 'bg-amber-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        Archived
+                    </button>
+                    <button
+                        onClick={() => setFilterActive('ALL')}
+                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterActive === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        All
+                    </button>
+                </div>
+
+                <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 h-10 items-center">
+                    <button
+                        onClick={() => setFilterStatus('TODO')}
+                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterStatus === 'TODO' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        Todo
+                    </button>
+                    <button
+                        onClick={() => setFilterStatus('DONE')}
+                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterStatus === 'DONE' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        Done
+                    </button>
+                    <button
+                        onClick={() => setFilterStatus('ALL')}
+                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterStatus === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        All Status
+                    </button>
+                    {selectedTaskIds.length > 0 && <button onClick={() => handleExportCsv(false)} className="p-2 text-emerald-400 hover:blue-500" title="Export Selected"><Download size={16} /></button>}
+                </div>
+
                 <button
-                    className="p-2 px-4 glass-card flex items-center gap-2 text-sm text-slate-400"
-                    onClick={() => setSearchQuery('')}
+                    className="p-2 px-4 glass-card flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-all h-10"
+                    onClick={() => { setSearchQuery(''); setFilterStatus('ALL'); setFilterActive('ACTIVE'); }}
                 >
-                    {searchQuery ? 'Clear' : <><Filter size={16} /> Filters</>}
+                    Reset
                 </button>
             </div>
 
@@ -285,6 +404,8 @@ const TaskManager = ({ token, apiKey }) => {
                                 task={t}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                onToggleStatus={handleToggleStatus}
+                                onToggleActive={handleToggleActive}
                                 isSelected={selectedTaskIds.includes(t.task_id)}
                                 onSelect={toggleTaskSelection}
                             />

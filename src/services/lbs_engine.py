@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskStatus
+from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskStatus, TaskCompletion
 from ..config import settings
 
 class LBSEngine:
@@ -57,6 +57,14 @@ class LBSEngine:
         
         exceptions_dict = {(exc.task_id, exc.target_date): exc for exc in exceptions_query}
         
+        # Load completion history
+        completions_query = self.session.query(TaskCompletion).filter(
+            TaskCompletion.user_id == self.user_id,
+            TaskCompletion.completed_date >= start_date,
+            TaskCompletion.completed_date <= end_date
+        ).all()
+        completions_dict = {(c.task_id, c.completed_date): True for c in completions_query}
+
         cache_entries = []
         
         # Process recurrence
@@ -66,13 +74,13 @@ class LBSEngine:
             if task.rule_type == "ONCE":
                 # Regular occurrence
                 if task.due_date and start_date <= task.due_date <= end_date:
-                    self._process_day(task, task.due_date, exceptions_dict, cache_entries, force_check=False)
+                    self._process_day(task, task.due_date, exceptions_dict, cache_entries, completions_dict, force_check=False)
                 
                 # Check for FORCE_DO exceptions on other dates
                 for (t_id, d), exc in exceptions_dict.items():
                     if t_id == task.task_id and exc.exception_type == "FORCE_DO":
                         if d != task.due_date: # Don't double process
-                            self._process_day(task, d, exceptions_dict, cache_entries, force_check=True)
+                            self._process_day(task, d, exceptions_dict, cache_entries, completions_dict, force_check=True)
                 continue
 
             # Recurring tasks
@@ -83,11 +91,11 @@ class LBSEngine:
                 if occurs:
                     # Normal occurrence, check for SKIP
                     if not (exception and exception.exception_type == "SKIP"):
-                        self._process_day(task, current_date, exceptions_dict, cache_entries, force_check=False)
+                        self._process_day(task, current_date, exceptions_dict, cache_entries, completions_dict, force_check=False)
                 else:
                     # No normal occurrence, check for FORCE_DO
                     if exception and exception.exception_type == "FORCE_DO":
-                        self._process_day(task, current_date, exceptions_dict, cache_entries, force_check=True)
+                        self._process_day(task, current_date, exceptions_dict, cache_entries, completions_dict, force_check=True)
                 
                 current_date += timedelta(days=1)
         
@@ -101,7 +109,7 @@ class LBSEngine:
         
         logger.info(f"[LBS Engine] Expanded {len(cache_entries)} entries for user {self.user_id} in {time.time() - start_time:.3f}s")
 
-    def _process_day(self, task, day_date, exceptions_dict, cache_entries, force_check=False):
+    def _process_day(self, task, day_date, exceptions_dict, cache_entries, completions_dict, force_check=False):
         # Implementation moved logic out to allow FORCE_DO check
         exception = exceptions_dict.get((task.task_id, day_date))
         
@@ -111,12 +119,15 @@ class LBSEngine:
         elif exception and exception.exception_type == "FORCE_DO" and exception.override_load_value is not None:
              load = exception.override_load_value
             
+        # Completion check: History OR Master Status (for ONCE tasks or legacy)
+        is_completed = completions_dict.get((task.task_id, day_date)) or task.status == TaskStatus.DONE
+
         cache_entries.append(LBSDailyCache(
             user_id=self.user_id,
             target_date=day_date,
             task_id=task.task_id,
             calculated_load=load,
-            status="completed" if task.status == TaskStatus.DONE else "planned"
+            status="completed" if is_completed else "planned"
         ))
 
     def _should_task_occur(self, task: Task, target_date: date) -> bool:

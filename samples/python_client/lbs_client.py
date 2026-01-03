@@ -188,12 +188,20 @@ class LBSClient:
         """Delete multiple tasks by ID list."""
         return self._request("POST", "tasks/bulk-delete", json={"task_ids": task_ids})
 
-    def bulk_update_status(self, task_ids: List[str], active: bool) -> Dict:
-        """Update active status for multiple tasks."""
-        return self._request("POST", "tasks/bulk-update-status", json={"task_ids": task_ids, "active": active})
+    def bulk_update_active(self, task_ids: List[str], active: bool) -> Dict:
+        """Update active status (archive/unarchive) for multiple tasks."""
+        return self._request("POST", "tasks/bulk-update-active", json={"task_ids": task_ids, "active": active})
+
+    def toggle_task_completion(self, task_id: str, target_date: Union[date, str], status: bool = True) -> Dict:
+        """
+        Mark a specific task instance as completed (or todo) for a particular date.
+        This is the preferred way to complete recurring tasks without affecting master status.
+        """
+        date_str = target_date.isoformat() if isinstance(target_date, date) else target_date
+        return self._request("POST", f"tasks/{task_id}/complete", json={"completed_date": date_str, "status": status})
 
     def update_task_progress(self, task_id: str, status: Union[str, TaskStatus]) -> Dict:
-        """Update the progress status of a task (e.g., 'todo', 'done')."""
+        """Update the master progress status of a task (affects all future instances)."""
         status_val = status.value if isinstance(status, TaskStatus) else status
         return self.update_task(task_id, {"status": status_val})
 

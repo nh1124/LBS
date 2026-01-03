@@ -9,9 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
-
-from ..models.database import get_db, User, Task, TaskException, LBSDailyCache, TaskStatus
+from ..models.database import get_db, User, Task, TaskException, LBSDailyCache, TaskStatus, TaskCompletion
 from ..models.user import User as DBUser
 from ..services.lbs_engine import LBSEngine
 from ..auth import require_local_user, require_user_identity, Identity
@@ -23,7 +21,8 @@ from .schemas import (
     ExceptionCreate, 
     DashboardResponse,
     TaskBulkDelete,
-    TaskBulkStatusUpdate
+    TaskBulkActiveUpdate,
+    TaskCompletionRequest
 )
 
 router = APIRouter(tags=["LBS"])
@@ -95,7 +94,7 @@ def create_task(
 def list_tasks(
     context: Optional[str] = None,
     status: Optional[TaskStatus] = None,
-    active: bool = Query(True),
+    active: Optional[bool] = Query(None),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -275,9 +274,9 @@ def bulk_delete_tasks(
     
     return {"message": f"Successfully deleted {count} tasks"}
 
-@router.post("/tasks/bulk-update-status")
-def bulk_update_status(
-    bulk_in: TaskBulkStatusUpdate,
+@router.post("/tasks/bulk-update-active")
+def bulk_update_active(
+    bulk_in: TaskBulkActiveUpdate,
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -300,7 +299,45 @@ def bulk_update_status(
     engine = LBSEngine(db, identity.user_id)
     engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
     
-    return {"message": f"Successfully updated status for {count} tasks"}
+    return {"message": f"Successfully updated active status for {count} tasks"}
+
+@router.post("/tasks/{task_id}/complete")
+def complete_task_instance(
+    task_id: str,
+    req: TaskCompletionRequest,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    # Verify task ownership
+    task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Check if a completion already exists for this date
+    existing = db.query(TaskCompletion).filter(
+        TaskCompletion.task_id == task_id,
+        TaskCompletion.completed_date == req.completed_date
+    ).first()
+
+    if req.status:
+        if not existing:
+            new_completion = TaskCompletion(
+                user_id=identity.user_id,
+                task_id=task_id,
+                completed_date=req.completed_date
+            )
+            db.add(new_completion)
+    else:
+        if existing:
+            db.delete(existing)
+
+    db.commit()
+    
+    # Trigger narrow re-expansion for that specific day
+    engine = LBSEngine(db, identity.user_id)
+    engine.expand_tasks(req.completed_date, req.completed_date)
+
+    return {"message": "Task completion updated", "status": req.status}
 
 @router.post("/exceptions")
 def create_exception(

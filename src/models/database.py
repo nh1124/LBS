@@ -88,6 +88,15 @@ if settings.DATABASE_URL.startswith("sqlite"):
 engine = create_engine(settings.DATABASE_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+class TaskCompletion(Base):
+    """History of task completions for specific dates"""
+    __tablename__ = "task_completions"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
+    task_id = Column(String, ForeignKey("tasks.task_id"), nullable=False, index=True)
+    completed_date = Column(Date, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 def get_db():
     db = SessionLocal()
     try:

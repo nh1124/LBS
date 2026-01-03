@@ -111,6 +111,17 @@ erDiagram
 | `active` | Boolean | Enabled flag |
 | `status` | Enum | Task progress (`todo`, `done`) |
 | `rule_type` | Enum | Recurrence type |
+
+### 4.2 Task Completion History Table (`task_completions`)
+Stores individual completion events for tasks, specifically to handle recurring instances.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | PK |
+| `user_id` | String | FK to Users |
+| `task_id` | String | FK to Tasks |
+| `completed_date`| Date | The specific date the task was completed |
+| `created_at` | DateTime | Timestamp of recording |
 | `due_date` | Date | For ONCE tasks |
 | `mon`–`sun` | Boolean | Weekday flags (WEEKLY) |
 | `interval_days` | Int | Days between (EVERY_N_DAYS) |
@@ -160,13 +171,14 @@ For each date in [start_date, end_date]:
        - MONTHLY_DAY: day == month_day
        - MONTHLY_NTH_WEEKDAY: is Nth weekday of month
     
-    3. Exception Override
-       - SKIP → do not create entry
-       - OVERRIDE_LOAD → use exception's load value
+    3. Completion & Exception Check
+       - IF exists in `task_completions` for `target_date`: status = "completed"
+       - ELSE IF task.status == DONE: status = "completed" (Master Override)
+       - ELSE: status = "planned"
+       
+       - Exception: IF `task_exceptions` for `target_date` is `omit`: status = "skipped"
     
     4. Create LBSDailyCache entry with user_id
-       - If task.status == DONE, cache.status = "completed"
-       - Else, cache.status = "planned"
 ```
 ### 5.3 Load Calculation Formula
 $$
