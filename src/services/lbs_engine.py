@@ -1,70 +1,31 @@
 from datetime import date, timedelta
 from typing import List, Dict, Optional
-from sqlalchemy.orm import Session
 from calendar import monthrange
 import time
 import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskExecution, TaskStatus
-from ..config import settings
+from ..models.database import Task, TaskException, LBSDailyCache, TaskExecution, TaskStatus
 
 class LBSEngine:
-    """User-scoped LBS calculation and expansion logic"""
+    """User-scoped LBS calculation and expansion logic - Pure Version"""
     
-    def __init__(self, db_session: Session, user_id: str):
-        self.session = db_session
-        self.user_id = user_id
-        self.config = self._load_config()
+    def __init__(self, config: Dict[str, float]):
+        self.config = config
     
-    def _load_config(self) -> Dict[str, float]:
-        """Load user-specific or default configuration"""
-        configs = self.session.query(SystemConfig).filter(SystemConfig.user_id == self.user_id).all()
-        config_dict = {c.key: float(c.value) for c in configs}
-        
-        # Fill defaults
-        return {
-            "ALPHA": config_dict.get("ALPHA", settings.DEFAULT_ALPHA),
-            "BETA": config_dict.get("BETA", settings.DEFAULT_BETA),
-            "CAP": config_dict.get("CAP", settings.DEFAULT_CAP),
-            "SWITCH_COST": config_dict.get("SWITCH_COST", settings.DEFAULT_SWITCH_COST),
-        }
-    
-    def expand_tasks(self, start_date: date, end_date: date) -> None:
-        """Expand task rules into daily cache for the user's date range"""
+    def calculate_schedule(
+        self, 
+        user_id: str, 
+        start_date: date, 
+        end_date: date, 
+        tasks: List[Task], 
+        executions: Dict[tuple, TaskExecution], 
+        exceptions: Dict[tuple, TaskException]
+    ) -> List[LBSDailyCache]:
+        """Calculate task rules into daily cache entries for the given date range"""
         start_time = time.time()
         
-        # Clear existing cache for this user and range
-        self.session.query(LBSDailyCache).filter(
-            LBSDailyCache.user_id == self.user_id,
-            LBSDailyCache.target_date >= start_date,
-            LBSDailyCache.target_date <= end_date
-        ).delete()
-        
-        # Get all active tasks for user
-        tasks = self.session.query(Task).filter(
-            Task.user_id == self.user_id,
-            Task.active == True
-        ).all()
-        
-        # Load exceptions
-        exceptions_query = self.session.query(TaskException).filter(
-            TaskException.user_id == self.user_id,
-            TaskException.target_date >= start_date,
-            TaskException.target_date <= end_date
-        ).all()
-        
-        exceptions_dict = {(exc.task_id, exc.target_date): exc for exc in exceptions_query}
-        
-        # Load execution history
-        executions_query = self.session.query(TaskExecution).filter(
-            TaskExecution.user_id == self.user_id,
-            TaskExecution.target_date >= start_date,
-            TaskExecution.target_date <= end_date
-        ).all()
-        executions_dict = {(e.task_id, e.target_date): e for e in executions_query}
-
         cache_entries = []
         
         # Process recurrence
@@ -74,44 +35,39 @@ class LBSEngine:
             if task.rule_type == "ONCE":
                 # Regular occurrence
                 if task.due_date and start_date <= task.due_date <= end_date:
-                    self._process_day(task, task.due_date, exceptions_dict, cache_entries, executions_dict, force_check=False)
+                    self._process_day(user_id, task, task.due_date, exceptions, cache_entries, executions)
                 
                 # Check for FORCE_DO exceptions on other dates
-                for (t_id, d), exc in exceptions_dict.items():
+                for (t_id, d), exc in exceptions.items():
                     if t_id == task.task_id and exc.exception_type == "FORCE_DO":
                         if d != task.due_date: # Don't double process
-                            self._process_day(task, d, exceptions_dict, cache_entries, executions_dict, force_check=True)
+                            self._process_day(user_id, task, d, exceptions, cache_entries, executions)
                 continue
 
             # Recurring tasks
             while current_date <= end_date:
                 occurs = self._should_task_occur(task, current_date)
-                exception = exceptions_dict.get((task.task_id, current_date))
+                exception = exceptions.get((task.task_id, current_date))
                 
                 if occurs:
                     # Normal occurrence, check for SKIP
                     if not (exception and exception.exception_type == "SKIP"):
-                        self._process_day(task, current_date, exceptions_dict, cache_entries, executions_dict, force_check=False)
+                        self._process_day(user_id, task, current_date, exceptions, cache_entries, executions)
                 else:
                     # No normal occurrence, check for FORCE_DO
                     if exception and exception.exception_type == "FORCE_DO":
-                        self._process_day(task, current_date, exceptions_dict, cache_entries, executions_dict, force_check=True)
+                        self._process_day(user_id, task, current_date, exceptions, cache_entries, executions)
                 
                 current_date += timedelta(days=1)
         
-        if cache_entries:
-            self.session.bulk_save_objects(cache_entries)
+        # Update overflow flags in the results (note: this is now internal to the pure calculation)
+        self._calculate_overflow_flags(user_id, start_date, end_date, cache_entries, tasks)
         
-        self.session.commit()
-        
-        # Update overflow flags
-        self._update_overflow_flags(start_date, end_date)
-        
-        logger.info(f"[LBS Engine] Expanded {len(cache_entries)} entries for user {self.user_id} in {time.time() - start_time:.3f}s")
+        logger.info(f"[LBS Engine] Calculated {len(cache_entries)} entries for user {user_id} in {time.time() - start_time:.3f}s")
+        return cache_entries
 
-    def _process_day(self, task, day_date, exceptions_dict, cache_entries, executions_dict, force_check=False):
-        # Implementation moved logic out to allow FORCE_DO check
-        exception = exceptions_dict.get((task.task_id, day_date))
+    def _process_day(self, user_id, task, day_date, exceptions, cache_entries, executions):
+        exception = exceptions.get((task.task_id, day_date))
         
         load = task.base_load_score
         if exception and exception.exception_type == "OVERRIDE_LOAD":
@@ -119,11 +75,10 @@ class LBSEngine:
         elif exception and exception.exception_type == "FORCE_DO" and exception.override_load_value is not None:
              load = exception.override_load_value
             
-        # Execution check: Source of Truth for completion
-        execution = executions_dict.get((task.task_id, day_date))
+        execution = executions.get((task.task_id, day_date))
 
         cache_entries.append(LBSDailyCache(
-            user_id=self.user_id,
+            user_id=user_id,
             target_date=day_date,
             task_id=task.task_id,
             calculated_load=load,
@@ -161,24 +116,20 @@ class LBSEngine:
         
         return False
 
-    def calculate_daily_load(self, target_date: date, include_completed: bool = True) -> Dict:
+    def calculate_daily_load_pure(self, target_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
+        """Pure calculation of daily load from cache entries and task metadata"""
         alpha = self.config["ALPHA"]
         beta = self.config["BETA"]
         switch_cost = self.config["SWITCH_COST"]
         cap = self.config["CAP"]
         
-        query = self.session.query(LBSDailyCache).filter(
-            LBSDailyCache.user_id == self.user_id,
-            LBSDailyCache.target_date == target_date,
-            LBSDailyCache.status != TaskStatus.SKIPPED
-        )
+        # Filter entries for the target date and status
+        day_entries = [e for e in cache_entries if e.target_date == target_date and e.status != TaskStatus.SKIPPED]
         
         if not include_completed:
-            query = query.filter(LBSDailyCache.status != TaskStatus.DONE)
+            day_entries = [e for e in day_entries if e.status != TaskStatus.DONE]
             
-        cache_entries = query.all()
-        
-        if not cache_entries:
+        if not day_entries:
             return {
                 "date": target_date, 
                 "base_load": 0.0,
@@ -192,13 +143,13 @@ class LBSEngine:
                 "tasks": []
             }
             
-        base_load = sum(e.calculated_load for e in cache_entries)
-        task_count = len(cache_entries)
+        base_load = sum(e.calculated_load for e in day_entries)
+        task_count = len(day_entries)
         
-        # Get tasks for these entries to find contexts
-        task_ids = [e.task_id for e in cache_entries]
-        tasks = self.session.query(Task).filter(Task.task_id.in_(task_ids)).all()
-        unique_contexts = len(set(t.context for t in tasks))
+        # Find unique contexts using pre-fetched tasks
+        task_map = {t.task_id: t for t in tasks}
+        current_tasks = [task_map[e.task_id] for e in day_entries if e.task_id in task_map]
+        unique_contexts = len(set(t.context for t in current_tasks))
         
         count_penalty = alpha * (task_count ** beta)
         context_penalty = switch_cost * max(unique_contexts - 1, 0)
@@ -221,34 +172,33 @@ class LBSEngine:
             "cap": cap,
             "tasks": [
                 {
-                    "task_id": t.task_id, 
-                    "task_name": t.task_name, 
-                    "context": t.context, 
-                    "load": next(e for e in cache_entries if e.task_id == t.task_id).calculated_load,
-                    "status": next(e for e in cache_entries if e.task_id == t.task_id).status
+                    "task_id": e.task_id, 
+                    "task_name": task_map[e.task_id].task_name if e.task_id in task_map else "Unknown", 
+                    "context": task_map[e.task_id].context if e.task_id in task_map else "unknown", 
+                    "load": e.calculated_load,
+                    "status": e.status
                 }
-                for t in tasks
+                for e in day_entries
             ]
         }
 
-    def _update_overflow_flags(self, start_date: date, end_date: date) -> None:
+    def _calculate_overflow_flags(self, user_id: str, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task]) -> None:
         cap = self.config["CAP"]
         current = start_date
         while current <= end_date:
-            load_data = self.calculate_daily_load(current)
+            load_data = self.calculate_daily_load_pure(current, cache_entries, tasks)
             is_overflow = load_data["adjusted_load"] > cap
-            self.session.query(LBSDailyCache).filter(
-                LBSDailyCache.user_id == self.user_id,
-                LBSDailyCache.target_date == current
-            ).update({"is_overflow": is_overflow})
+            # Update all entries for this date in the list
+            for e in cache_entries:
+                if e.target_date == current:
+                    e.is_overflow = is_overflow
             current += timedelta(days=1)
-        self.session.commit()
 
-    def get_weekly_stats(self, start_date: date, include_completed: bool = True) -> Dict:
+    def get_weekly_stats_pure(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
         daily_loads = []
         for i in range(7):
             day = start_date + timedelta(days=i)
-            daily_loads.append(self.calculate_daily_load(day, include_completed=include_completed)["adjusted_load"])
+            daily_loads.append(self.calculate_daily_load_pure(day, cache_entries, tasks, include_completed=include_completed)["adjusted_load"])
         
         avg = sum(daily_loads) / 7
         recovery_days = sum(1 for l in daily_loads if l < 4.0)
@@ -257,14 +207,7 @@ class LBSEngine:
             "recovery_rate": round((recovery_days / 7) * 100, 1)
         }
 
-    def get_trend_data(self, weeks: int = 12, start_date: Optional[date] = None, include_completed: bool = True) -> List[Dict]:
-        """Get average and max load per week for trend analysis"""
-        if not start_date:
-            end_date = date.today()
-            start_date = end_date - timedelta(weeks=weeks)
-        else:
-            end_date = start_date + timedelta(weeks=weeks)
-        
+    def get_trend_data_pure(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
         trends = []
         current_week_start = start_date
         
@@ -274,7 +217,7 @@ class LBSEngine:
             
             curr = current_week_start
             while curr <= week_end and curr <= end_date:
-                daily = self.calculate_daily_load(curr, include_completed=include_completed)
+                daily = self.calculate_daily_load_pure(curr, cache_entries, tasks, include_completed=include_completed)
                 week_loads.append(daily["adjusted_load"])
                 curr += timedelta(days=1)
                 
@@ -289,31 +232,24 @@ class LBSEngine:
             
         return trends
 
-    def get_context_distribution(self, start: date, end: date, include_completed: bool = True) -> List[Dict]:
-        """Get load grouped by context (spoke) for each day"""
+    def get_context_distribution_pure(self, start: date, end: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
         distribution = {}
+        task_map = {t.task_id: t for t in tasks}
         
         curr = start
         while curr <= end:
-            query = self.session.query(LBSDailyCache).filter(
-                LBSDailyCache.user_id == self.user_id,
-                LBSDailyCache.target_date == curr,
-                LBSDailyCache.status != TaskStatus.SKIPPED
-            )
-            
+            day_entries = [e for e in cache_entries if e.target_date == curr and e.status != TaskStatus.SKIPPED]
             if not include_completed:
-                query = query.filter(LBSDailyCache.status != TaskStatus.DONE)
-                
-            cache_entries = query.all()
+                day_entries = [e for e in day_entries if e.status != TaskStatus.DONE]
             
-            if cache_entries:
+            if day_entries:
                 date_str = str(curr)
                 distribution[date_str] = {"date": date_str, "total_load": 0, "contexts": []}
                 
                 context_map = {}
-                for entry in cache_entries:
-                    task = self.session.query(Task).filter(Task.task_id == entry.task_id).first()
-                    context = task.context or "unassigned"
+                for entry in day_entries:
+                    task = task_map.get(entry.task_id)
+                    context = task.context if task else "unassigned"
                     context_map[context] = context_map.get(context, 0) + entry.calculated_load
                 
                 for ctx, load in context_map.items():

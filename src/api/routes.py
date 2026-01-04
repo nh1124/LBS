@@ -9,23 +9,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.database import get_db, User, Task, TaskException, LBSDailyCache, TaskStatus, TaskExecution
-from ..models.user import User as DBUser
-from ..services.lbs_engine import LBSEngine
-from ..auth import require_local_user, require_user_identity, Identity
+from ..models.database import get_db, Task, TaskException, TaskStatus, TaskExecution
+from ..services.manager import LBSManager
+from ..auth import require_user_identity, Identity
 from .schemas import (
     TaskCreate, 
     TaskUpdate, 
     TaskResponse, 
-    TaskDetail, 
-    ExceptionCreate, 
     DashboardResponse,
     TaskBulkDelete,
     TaskBulkActiveUpdate,
     TaskExecutionRequest,
     TaskExecutionResponse,
-    ScheduleTask,
-    DailySchedule
+    DailySchedule,
+    ExceptionCreate
 )
 
 router = APIRouter(tags=["LBS"])
@@ -41,45 +38,9 @@ def get_schedule(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    """
-    Unified schedule API. Leverages LBSDailyCache as the Source of Truth.
-    """
-    engine = LBSEngine(db, identity.user_id)
-    # Ensure cache is fresh for the requested range
-    engine.expand_tasks(start_date, end_date)
-    
-    # Join Cache and Task to get human-readable info
-    results = db.query(
-        LBSDailyCache.target_date,
-        LBSDailyCache.status,
-        LBSDailyCache.calculated_load,
-        Task.task_id,
-        Task.task_name,
-        Task.context
-    ).join(Task, LBSDailyCache.task_id == Task.task_id)\
-     .filter(
-         LBSDailyCache.user_id == identity.user_id,
-         LBSDailyCache.target_date >= start_date,
-         LBSDailyCache.target_date <= end_date
-     ).order_by(LBSDailyCache.target_date.asc()).all()
-     
-    # Convert flat rows to grouped DailySchedule objects
-    schedule_map = {}
-    for row in results:
-        d = row.target_date
-        if d not in schedule_map:
-            schedule_map[d] = {"date": d, "total_load": 0.0, "tasks": []}
-        
-        schedule_map[d]["total_load"] += row.calculated_load
-        schedule_map[d]["tasks"].append({
-            "task_id": row.task_id,
-            "task_name": row.task_name,
-            "context": row.context,
-            "status": row.status,
-            "load": row.calculated_load
-        })
-    
-    return sorted(schedule_map.values(), key=lambda x: x["date"])
+    """Unified schedule API via Manager"""
+    manager = LBSManager(db, identity.user_id)
+    return manager.get_schedule(start_date, end_date)
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
@@ -90,20 +51,10 @@ def get_dashboard(
     if not start_date:
         start_date = date.today() - timedelta(days=date.today().weekday())
     
-    engine = LBSEngine(db, identity.user_id)
-    
-    today = engine.calculate_daily_load(date.today(), include_completed=True) # Always include for today's snapshot
-    weekly = engine.get_weekly_stats(start_date, include_completed=True)
-    
-    daily_breakdown = []
-    for i in range(7):
-        daily_breakdown.append(engine.calculate_daily_load(start_date + timedelta(days=i), include_completed=True))
-        
+    manager = LBSManager(db, identity.user_id)
+    dash = manager.get_dashboard(start_date)
     return {
-        "today": today,
-        "weekly": weekly,
-        "daily_breakdown": daily_breakdown,
-        "config": engine.config,
+        **dash,
         "warnings": identity.warnings
     }
 
@@ -113,7 +64,7 @@ def create_task(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    logger.info(f"[LBS] Creating task for user {identity.user_id}")
+    manager = LBSManager(db, identity.user_id)
     task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
     try:
         db_task = Task(
@@ -121,22 +72,17 @@ def create_task(
             task_id=task_id,
             user_id=identity.user_id
         )
-        db.add(db_task)
+        manager.repo.create_task(db_task)
         db.commit()
         db.refresh(db_task)
-        logger.info(f"[LBS] Task {task_id} created in DB")
         
-        # Trigger expansion for range
-        engine = LBSEngine(db, identity.user_id)
+        # Trigger refresh
         expand_start = db_task.start_date or date.today()
         expand_end = db_task.end_date or (date.today() + timedelta(days=90))
-        logger.info(f"[LBS] Expanding tasks from {expand_start} to {expand_end}")
-        engine.expand_tasks(expand_start, expand_end)
-        logger.info(f"[LBS] Expansion complete")
+        manager.refresh_schedule(expand_start, expand_end)
         
         return db_task
     except Exception as e:
-        logger.error(f"[LBS] Error creating task: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -147,13 +93,13 @@ def list_tasks(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    """List task definitions (Master data). No execution status returned."""
+    manager = LBSManager(db, identity.user_id)
+    # Using repo directly for simple list
     query = db.query(Task).filter(Task.user_id == identity.user_id)
     if active is not None:
         query = query.filter(Task.active == active)
     if context:
         query = query.filter(Task.context == context)
-    
     return query.all()
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -162,11 +108,10 @@ def get_task_detail(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    """Get single task definition (Master data). No execution status returned."""
-    task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
+    manager = LBSManager(db, identity.user_id)
+    task = manager.repo.get_task(identity.user_id, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
     return task
 
 @router.get("/tasks/{task_id}/history", response_model=List[TaskExecutionResponse])
@@ -177,8 +122,8 @@ def get_task_history(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    # Verify task ownership
-    task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
+    manager = LBSManager(db, identity.user_id)
+    task = manager.repo.get_task(identity.user_id, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
         
@@ -197,7 +142,8 @@ def update_task(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    db_task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
+    manager = LBSManager(db, identity.user_id)
+    db_task = manager.repo.get_task(identity.user_id, task_id)
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -209,11 +155,9 @@ def update_task(
     db.commit()
     db.refresh(db_task)
     
-    # Trigger re-expansion
-    engine = LBSEngine(db, identity.user_id)
     expand_start = db_task.start_date or date.today()
     expand_end = db_task.end_date or (date.today() + timedelta(days=90))
-    engine.expand_tasks(expand_start, expand_end)
+    manager.refresh_schedule(expand_start, expand_end)
     
     return db_task
 
@@ -226,32 +170,22 @@ def upload_tasks_csv(
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
     
+    manager = LBSManager(db, identity.user_id)
     contents = file.file.read().decode('utf-8')
     reader = csv.DictReader(io.StringIO(contents))
     
     tasks_to_create = []
-    engine = LBSEngine(db, identity.user_id)
-    
-    # We'll use a wide range for expansion if any task is created
     min_start = date.today()
     max_end = date.today() + timedelta(days=90)
 
     for row in reader:
         try:
-            # Basic validation/conversion
             task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
-            
-            # Helper to parse boolean from CSV
             def to_bool(val):
                 if not val: return False
                 return str(val).lower() in ('true', '1', 'yes', 'y', 't')
 
-            # Validate rule_type
             rule_type = row.get('rule_type', 'WEEKLY').upper()
-            valid_rules = ['WEEKLY', 'ONCE', 'EVERY_N_DAYS', 'MONTHLY_DAY', 'MONTHLY_NTH_WEEKDAY']
-            if rule_type not in valid_rules:
-                raise HTTPException(status_code=400, detail=f"Invalid rule_type: {rule_type}")
-
             db_task = Task(
                 task_id=task_id,
                 user_id=identity.user_id,
@@ -278,28 +212,17 @@ def upload_tasks_csv(
                 notes=row.get('notes'),
                 external_sync_id=row.get('external_sync_id')
             )
-            
             if db_task.start_date and db_task.start_date < min_start: min_start = db_task.start_date
             if db_task.end_date and db_task.end_date > max_end: max_end = db_task.end_date
-
             tasks_to_create.append(db_task)
-        except HTTPException:
-            raise
         except Exception as e:
-            # Log other parsing errors (like float conversion) and continue
             logger.warning(f"Error parsing row: {e}")
             continue
-
-    if not tasks_to_create and reader.line_num > 1:
-        # If we didn't created any tasks but there were rows (line_num > 1 because line 1 is header)
-        raise HTTPException(status_code=400, detail="No valid tasks found in CSV")
 
     if tasks_to_create:
         db.add_all(tasks_to_create)
         db.commit()
-        
-        # Trigger expansion for all new tasks in the relevant range
-        engine.expand_tasks(min_start, max_end)
+        manager.refresh_schedule(min_start, max_end)
         
     return {"message": f"Successfully imported {len(tasks_to_create)} tasks"}
 
@@ -309,18 +232,14 @@ def delete_task(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    db_task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
+    manager = LBSManager(db, identity.user_id)
+    db_task = manager.repo.get_task(identity.user_id, task_id)
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    db.delete(db_task)
+    manager.repo.delete_task(db_task)
     db.commit()
-    
-    # Expansion trigger might be needed but optional here if cache is cleared by end of day or range
-    # Best to re-expand to clear cache
-    engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
-    
+    manager.refresh_schedule(date.today(), date.today() + timedelta(days=90))
     return {"message": "Task deleted successfully"}
 
 @router.post("/tasks/bulk-delete")
@@ -329,7 +248,7 @@ def bulk_delete_tasks(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    # Use optimized single-query delete instead of loop
+    manager = LBSManager(db, identity.user_id)
     count = db.query(Task).filter(
         Task.task_id.in_(bulk_in.task_ids),
         Task.user_id == identity.user_id
@@ -339,11 +258,7 @@ def bulk_delete_tasks(
         return {"message": "No tasks found to delete"}
     
     db.commit()
-    
-    # Trigger expansion for user
-    engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
-    
+    manager.refresh_schedule(date.today(), date.today() + timedelta(days=90))
     return {"message": f"Successfully deleted {count} tasks"}
 
 @router.post("/tasks/bulk-update-active")
@@ -352,6 +267,7 @@ def bulk_update_active(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
+    manager = LBSManager(db, identity.user_id)
     tasks = db.query(Task).filter(
         Task.task_id.in_(bulk_in.task_ids),
         Task.user_id == identity.user_id
@@ -360,18 +276,13 @@ def bulk_update_active(
     if not tasks:
         return {"message": "No tasks found to update"}
     
-    count = len(tasks)
     for t in tasks:
         t.active = bulk_in.active
         t.updated_at = datetime.utcnow()
     
     db.commit()
-    
-    # Trigger expansion for user
-    engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(date.today(), date.today() + timedelta(days=90))
-    
-    return {"message": f"Successfully updated active status for {count} tasks"}
+    manager.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+    return {"message": f"Successfully updated active status for {len(tasks)} tasks"}
 
 @router.post("/tasks/{task_id}/complete")
 def handle_task_completion(
@@ -380,50 +291,12 @@ def handle_task_completion(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    # Verify task ownership
-    task = db.query(Task).filter(Task.task_id == task_id, Task.user_id == identity.user_id).first()
+    manager = LBSManager(db, identity.user_id)
+    task = manager.repo.get_task(identity.user_id, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Check if an execution already exists for this date
-    existing = db.query(TaskExecution).filter(
-        TaskExecution.task_id == task_id,
-        TaskExecution.target_date == req.target_date
-    ).first()
-
-    # Case A: status == TODO -> Delete execution (undo/planned state)
-    if req.status == TaskStatus.TODO:
-        if existing:
-            db.delete(existing)
-            db.commit()
-            # Re-expand for the specific day to clear cache
-            engine = LBSEngine(db, identity.user_id)
-            engine.expand_tasks(req.target_date, req.target_date)
-            return {"message": "Task reverted to planned state", "status": TaskStatus.TODO}
-        return {"message": "Task already in planned state", "status": TaskStatus.TODO}
-
-    # Case B: Other statuses -> UPSERT execution
-    if not existing:
-        new_exec = TaskExecution(
-            user_id=identity.user_id,
-            task_id=task_id,
-            target_date=req.target_date,
-            status=req.status,
-            progress=100 if req.status == TaskStatus.DONE else 0
-        )
-        db.add(new_exec)
-    else:
-        existing.status = req.status
-        if req.status == TaskStatus.DONE:
-            existing.progress = 100
-
-    db.commit()
-    
-    # Trigger narrow re-expansion for that specific day
-    engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(req.target_date, req.target_date)
-
-    return {"message": f"Task execution updated: {req.status}", "status": req.status}
+    return manager.update_task_execution(task_id, req.target_date, req.status)
 
 @router.post("/exceptions")
 def create_exception(
@@ -431,8 +304,8 @@ def create_exception(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    # Verify task ownership
-    task = db.query(Task).filter(Task.task_id == exc.task_id, Task.user_id == identity.user_id).first()
+    manager = LBSManager(db, identity.user_id)
+    task = manager.repo.get_task(identity.user_id, exc.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -440,13 +313,9 @@ def create_exception(
         **exc.dict(),
         user_id=identity.user_id
     )
-    db.add(new_exc)
+    manager.repo.create_exception(new_exc)
     db.commit()
-    
-    # Re-expand affected date
-    engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(exc.target_date, exc.target_date)
-    
+    manager.refresh_schedule(exc.target_date, exc.target_date)
     return {"message": "Exception created successfully"}
 
 @router.get("/calculate/{target_date}")
@@ -456,8 +325,12 @@ def calculate_load(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    engine = LBSEngine(db, identity.user_id)
-    return engine.calculate_daily_load(target_date, include_completed=include_completed)
+    manager = LBSManager(db, identity.user_id)
+    # Ensure cache is fresh for the day
+    manager.refresh_schedule(target_date, target_date)
+    cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, target_date, target_date)
+    tasks = manager.repo.get_active_tasks(identity.user_id)
+    return manager.engine.calculate_daily_load_pure(target_date, cache_entries, tasks, include_completed=include_completed)
 
 @router.post("/expand")
 def expand_tasks(
@@ -466,8 +339,8 @@ def expand_tasks(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    engine = LBSEngine(db, identity.user_id)
-    engine.expand_tasks(start_date, end_date)
+    manager = LBSManager(db, identity.user_id)
+    manager.refresh_schedule(start_date, end_date)
     return {"message": "Expansion complete"}
 
 @router.get("/heatmap")
@@ -478,19 +351,16 @@ def get_heatmap(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    engine = LBSEngine(db, identity.user_id)
-    # Ensure range is expanded
-    engine.expand_tasks(start, end)
+    manager = LBSManager(db, identity.user_id)
+    manager.refresh_schedule(start, end)
     
-    if hasattr(engine, 'get_heatmap_data'):
-        return engine.get_heatmap_data(start, end, include_completed=include_completed)
-    return get_heatmap_legacy(engine, start, end, include_completed=include_completed)
-
-def get_heatmap_legacy(engine, start, end, include_completed=True):
+    cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, start, end)
+    tasks = manager.repo.get_active_tasks(identity.user_id)
+    
     data = []
     curr = start
     while curr <= end:
-        load = engine.calculate_daily_load(curr, include_completed=include_completed)
+        load = manager.engine.calculate_daily_load_pure(curr, cache_entries, tasks, include_completed=include_completed)
         data.append({
             "date": str(curr),
             "adjusted_load": load["adjusted_load"],
@@ -508,8 +378,8 @@ def get_trends(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    engine = LBSEngine(db, identity.user_id)
-    return {"trends": engine.get_trend_data(weeks, start_date, include_completed=include_completed)}
+    manager = LBSManager(db, identity.user_id)
+    return {"trends": manager.get_trends(weeks, start_date, include_completed=include_completed)}
 
 @router.get("/context-distribution")
 def get_context_distribution(
@@ -519,5 +389,5 @@ def get_context_distribution(
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
-    engine = LBSEngine(db, identity.user_id)
-    return {"distribution": engine.get_context_distribution(start, end, include_completed=include_completed)}
+    manager = LBSManager(db, identity.user_id)
+    return {"distribution": manager.get_context_distribution(start, end, include_completed=include_completed)}
