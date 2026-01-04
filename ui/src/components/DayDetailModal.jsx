@@ -1,7 +1,7 @@
 import React from 'react';
-import { X, Activity, Layers, Tag, Info } from 'lucide-react';
+import { X, Activity, Layers, Tag, Info, CheckCircle2, Circle, XCircle } from 'lucide-react';
 
-const DayDetailModal = ({ isOpen, onClose, data }) => {
+const DayDetailModal = ({ isOpen, onClose, data, onToggleTaskStatus, isUpdating }) => {
     if (!isOpen || !data) return null;
 
     const getLevelColor = (level) => {
@@ -88,17 +88,55 @@ const DayDetailModal = ({ isOpen, onClose, data }) => {
                     <div className="flex flex-col gap-4">
                         <h4 className="text-xs text-slate-500 uppercase font-bold tracking-widest">Scheduled Tasks</h4>
                         <div className="flex flex-col gap-2">
-                            {data.tasks.map((task, idx) => (
-                                <div key={idx} className="glass-card p-4 flex justify-between items-center bg-white/5 hover:bg-white/10 transition-all border border-transparent hover:border-white/5">
-                                    <div className="flex flex-col">
-                                        <span className="font-bold text-slate-200">{task.task_name}</span>
-                                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{task.context}</span>
+                            {data.tasks.map((task, idx) => {
+                                const isDone = task.status === 'done';
+                                const isSkipped = task.status === 'skipped';
+                                const isInProgress = task.status === 'in_progress';
+
+                                return (
+                                    <div key={idx} className={`glass-card p-4 flex justify-between items-center bg-white/5 transition-all border ${isDone ? 'border-emerald-500/20 bg-emerald-500/5' : isSkipped ? 'border-amber-500/20 bg-amber-500/5' : 'border-transparent'}`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex flex-col">
+                                                <span className={`font-bold ${isDone ? 'text-emerald-400/80 line-through' : 'text-slate-200'}`}>
+                                                    {task.task_name}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{task.context}</span>
+                                                    {task.status !== 'todo' && (
+                                                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase ${isDone ? 'bg-emerald-500/20 text-emerald-400' : isSkipped ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                            {task.status}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 px-3 bg-white/5 rounded-lg font-mono text-sm text-blue-400">
+                                                {task.load.toFixed(1)}
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => onToggleTaskStatus(task.task_id, isDone ? 'todo' : 'done')}
+                                                    disabled={isUpdating}
+                                                    className={`p-2 rounded-lg transition-all ${isDone ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-white/5 text-slate-500 hover:text-emerald-400'}`}
+                                                    title={isDone ? "Mark as Todo" : "Mark as Done"}
+                                                >
+                                                    <CheckCircle2 size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => onToggleTaskStatus(task.task_id, isSkipped ? 'todo' : 'skipped')}
+                                                    disabled={isUpdating}
+                                                    className={`p-2 rounded-lg transition-all ${isSkipped ? 'bg-amber-500/20 text-amber-400' : 'hover:bg-white/5 text-slate-500 hover:text-amber-400'}`}
+                                                    title={isSkipped ? "Restore Task" : "Skip Task"}
+                                                >
+                                                    <XCircle size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="p-2 px-3 bg-white/5 rounded-lg font-mono text-sm text-blue-400">
-                                        {task.load.toFixed(1)}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

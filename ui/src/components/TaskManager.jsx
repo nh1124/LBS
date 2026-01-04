@@ -17,7 +17,6 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleStatus, onToggleActive, isSe
         }
     };
 
-    const isDone = task.status === 'done';
     const isArchived = !task.active;
 
     return (
@@ -34,18 +33,15 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleStatus, onToggleActive, isSe
                 />
             </div>
 
-            <button
-                onClick={() => onToggleStatus(task)}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold transition-all
-                    ${isDone ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/10'}`}
-                title={isDone ? "Mark as Todo" : "Mark as Done"}
+            <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center font-bold bg-blue-500/10 text-blue-400 border border-blue-500/10"
             >
-                {isDone ? <CheckCircle size={20} /> : task.base_load_score.toFixed(1)}
-            </button>
+                {task.base_load_score.toFixed(1)}
+            </div>
 
             <div className="flex-grow">
                 <div className="flex items-center gap-3 mb-1">
-                    <h4 className={`font-bold transition-all ${isDone ? 'text-emerald-400/70 line-through' : ''} ${isArchived ? 'text-slate-500 italic' : ''}`}>
+                    <h4 className={`font-bold transition-all ${isArchived ? 'text-slate-500 italic' : ''}`}>
                         {task.task_name}
                     </h4>
                     <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[10px] text-slate-400 uppercase tracking-widest font-bold">{task.context}</span>
@@ -80,23 +76,22 @@ const TaskManager = ({ token, apiKey }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, TODO, DONE
     const [filterActive, setFilterActive] = useState('ACTIVE'); // ALL, ACTIVE, ARCHIVED
 
     const filteredTasks = tasks.filter(t => {
         const matchesSearch = t.task_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.context.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = filterStatus === 'ALL' || t.status === filterStatus.toLowerCase();
         const matchesActive = filterActive === 'ALL' ||
             (filterActive === 'ACTIVE' && t.active) ||
             (filterActive === 'ARCHIVED' && !t.active);
-        return matchesSearch && matchesStatus && matchesActive;
+        return matchesSearch && matchesActive;
     });
 
     // Form State
     const [formData, setFormData] = useState({
         task_name: '', context: 'work', base_load_score: 2.0, rule_type: 'WEEKLY',
-        mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false
+        mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false,
+        start_date: '', end_date: '', notes: ''
     });
 
     const api = axios.create({
@@ -171,27 +166,6 @@ const TaskManager = ({ token, apiKey }) => {
         setSelectedTaskIds(prev =>
             prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id]
         );
-    };
-
-    const handleToggleStatus = async (task) => {
-        try {
-            const isCurrentlyDone = task.status === 'done';
-            const targetDate = task.rule_type === 'ONCE' ? task.due_date : new Date().toISOString().split('T')[0];
-
-            if (!targetDate) {
-                alert("Cannot toggle status for a task without a date.");
-                return;
-            }
-
-            await api.post(`/tasks/${task.task_id}/complete`, {
-                target_date: targetDate,
-                status: !isCurrentlyDone
-            });
-
-            fetchTasks();
-        } catch (err) {
-            alert("Error toggling status: " + (err.response?.data?.detail || err.message));
-        }
     };
 
     const handleToggleActive = async (task) => {
@@ -306,24 +280,20 @@ const TaskManager = ({ token, apiKey }) => {
                             </button>
                         </>
                     ) : (
-                        <button
-                            onClick={() => handleExportCsv(true)}
-                            className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 p-3 px-5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-emerald-500/20 transition-all font-mono"
-                        >
-                            <Download size={18} /> Export All
-                        </button>
+                        <>
+                            <label className={`p-3 px-5 glass-card flex items-center gap-2 text-sm font-bold cursor-pointer hover:bg-white/5 transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <Upload size={18} className="text-blue-400" />
+                                <span>{isUploading ? 'Importing...' : 'Import CSV'}</span>
+                                <input type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+                            </label>
+                            <button
+                                onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
+                                className="primary flex items-center gap-2"
+                            >
+                                <Plus size={20} /> Create Task
+                            </button>
+                        </>
                     )}
-                    <label className={`p-3 px-5 glass-card flex items-center gap-2 text-sm font-bold cursor-pointer hover:bg-white/5 transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <Upload size={18} className="text-blue-400" />
-                        <span>{isUploading ? 'Importing...' : 'Import CSV'}</span>
-                        <input type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
-                    </label>
-                    <button
-                        onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-                        className="primary flex items-center gap-2"
-                    >
-                        <Plus size={20} /> Create Task
-                    </button>
                 </div>
             </header>
 
@@ -360,30 +330,13 @@ const TaskManager = ({ token, apiKey }) => {
                 </div>
 
                 <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 h-10 items-center">
-                    <button
-                        onClick={() => setFilterStatus('TODO')}
-                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterStatus === 'TODO' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        Todo
-                    </button>
-                    <button
-                        onClick={() => setFilterStatus('DONE')}
-                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterStatus === 'DONE' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        Done
-                    </button>
-                    <button
-                        onClick={() => setFilterStatus('ALL')}
-                        className={`px-4 h-full rounded-lg text-xs font-bold uppercase transition-all ${filterStatus === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        All Status
-                    </button>
-                    {selectedTaskIds.length > 0 && <button onClick={() => handleExportCsv(false)} className="p-2 text-emerald-400 hover:blue-500" title="Export Selected"><Download size={16} /></button>}
+                    {selectedTaskIds.length > 0 && <button onClick={() => handleExportCsv(false)} className="p-2 text-emerald-400 hover:blue-500" title="Export Selected"><Download size={18} /></button>}
+                    {selectedTaskIds.length === 0 && <button onClick={() => handleExportCsv(true)} className="p-2 text-emerald-400 hover:text-white transition-all" title="Export All Tasks"><Download size={18} /></button>}
                 </div>
 
                 <button
                     className="p-2 px-4 glass-card flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-all h-10"
-                    onClick={() => { setSearchQuery(''); setFilterStatus('ALL'); setFilterActive('ACTIVE'); }}
+                    onClick={() => { setSearchQuery(''); setFilterActive('ACTIVE'); }}
                 >
                     Reset
                 </button>
@@ -408,7 +361,6 @@ const TaskManager = ({ token, apiKey }) => {
                                 task={t}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
-                                onToggleStatus={handleToggleStatus}
                                 onToggleActive={handleToggleActive}
                                 isSelected={selectedTaskIds.includes(t.task_id)}
                                 onSelect={toggleTaskSelection}
@@ -519,6 +471,35 @@ const TaskManager = ({ token, apiKey }) => {
                                     />
                                 </div>
                             )}
+
+                            <div className="grid grid-cols-2 gap-4 col-span-2 pt-4 border-t border-white/5">
+                                <div>
+                                    <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Start Date (Optional)</label>
+                                    <input
+                                        type="date" className="w-full"
+                                        value={formData.start_date || ''}
+                                        onChange={e => setFormData({ ...formData, start_date: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">End Date (Optional)</label>
+                                    <input
+                                        type="date" className="w-full"
+                                        value={formData.end_date || ''}
+                                        onChange={e => setFormData({ ...formData, end_date: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="col-span-2">
+                                <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Notes</label>
+                                <textarea
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm min-h-[100px] focus:border-blue-500/50 transition-all"
+                                    placeholder="Additional task details or instructions..."
+                                    value={formData.notes || ''}
+                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                />
+                            </div>
                         </div>
 
                         <div className="flex gap-4 pt-4 border-t border-white/5">

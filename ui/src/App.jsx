@@ -15,6 +15,7 @@ import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import TaskManager from './components/TaskManager';
 import LBSCalendar from './components/LBSCalendar';
+import ExecutionManager from './components/ExecutionManager';
 import LinkAccount from './components/LinkAccount';
 import APIKeyManager from './components/APIKeyManager';
 
@@ -146,9 +147,15 @@ function App() {
           />
           <SidebarItem
             icon={ListTodo}
-            label="Tasks"
+            label="Inventory"
             active={activeTab === 'tasks'}
             onClick={() => setActiveTab('tasks')}
+          />
+          <SidebarItem
+            icon={Activity}
+            label="Execution"
+            active={activeTab === 'execution'}
+            onClick={() => setActiveTab('execution')}
           />
           <SidebarItem
             icon={Calendar}
@@ -184,6 +191,7 @@ function App() {
           <>
             {activeTab === 'dashboard' && <Dashboard token={jwt} apiKey={apiKey} />}
             {activeTab === 'tasks' && <TaskManager token={jwt} apiKey={apiKey} />}
+            {activeTab === 'execution' && <ExecutionManager token={jwt} apiKey={apiKey} />}
             {activeTab === 'calendar' && <LBSCalendar token={jwt} apiKey={apiKey} />}
           </>
         )}

@@ -9,6 +9,7 @@ const LBSCalendar = ({ token, apiKey }) => {
     const [loading, setLoading] = useState(false);
     const [selectedDayData, setSelectedDayData] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [includeCompleted, setIncludeCompleted] = useState(true);
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
@@ -26,7 +27,7 @@ const LBSCalendar = ({ token, apiKey }) => {
             const start = new Date(year, month, 1).toISOString().split('T')[0];
             const end = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-            const resp = await api.get(`/heatmap?start=${start}&end=${end}`);
+            const resp = await api.get(`/heatmap?start=${start}&end=${end}&include_completed=${includeCompleted}`);
             const dataMap = {};
             resp.data.forEach(day => {
                 dataMap[day.date] = day;
@@ -41,7 +42,7 @@ const LBSCalendar = ({ token, apiKey }) => {
 
     useEffect(() => {
         if (token || apiKey) fetchMonthData();
-    }, [currentDate, token, apiKey]);
+    }, [currentDate, token, apiKey, includeCompleted]);
 
     const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
     const firstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
@@ -56,6 +57,29 @@ const LBSCalendar = ({ token, apiKey }) => {
             setIsModalOpen(true);
         } catch (err) {
             alert("Error fetching day details: " + err.message);
+        }
+    };
+
+    const handleToggleTaskStatus = async (taskId, newStatus) => {
+        if (!selectedDayData) return;
+        setLoading(true);
+        try {
+            const dateStr = selectedDayData.date;
+            await api.post(`/tasks/${taskId}/complete`, {
+                target_date: dateStr,
+                status: newStatus
+            });
+
+            // Refresh day details
+            const dayResp = await api.get(`/calculate/${dateStr}`);
+            setSelectedDayData(dayResp.data);
+
+            // Refresh calendar heatmap
+            fetchMonthData();
+        } catch (err) {
+            alert("Error updating task status: " + (err.response?.data?.detail || err.message));
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -130,12 +154,22 @@ const LBSCalendar = ({ token, apiKey }) => {
                     <h2 className="text-3xl font-bold mb-1">LBS Calendar</h2>
                     <p className="text-slate-400">Monthly schedule and predictive load mapping.</p>
                 </div>
+
                 <div className="flex items-center gap-4 bg-white/5 p-2 rounded-xl border border-white/5">
-                    <button onClick={handlePrevMonth} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
-                    <div className="min-w-[140px] text-center font-bold text-lg">
-                        {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    <button
+                        onClick={() => setIncludeCompleted(!includeCompleted)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${includeCompleted ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-white/5 text-slate-500 border border-transparent'}`}
+                    >
+                        {includeCompleted ? 'Showing Completed' : 'Hiding Completed'}
+                    </button>
+                    <div className="w-px h-6 bg-white/5" />
+                    <div className="flex items-center gap-4">
+                        <button onClick={handlePrevMonth} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
+                        <div className="min-w-[140px] text-center font-bold text-lg">
+                            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </div>
+                        <button onClick={handleNextMonth} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronRight size={20} /></button>
                     </div>
-                    <button onClick={handleNextMonth} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronRight size={20} /></button>
                 </div>
             </header>
 
@@ -143,19 +177,23 @@ const LBSCalendar = ({ token, apiKey }) => {
                 {renderCalendar()}
             </div>
 
-            {loading && (
-                <div className="fixed bottom-10 right-10 glass-card p-4 flex items-center gap-3 text-blue-400 animate-pulse border-blue-500/20 shadow-lg shadow-blue-500/5">
-                    <CalendarIcon size={18} />
-                    <span className="text-xs font-bold uppercase tracking-widest">Updating Calendar...</span>
-                </div>
-            )}
+            {
+                loading && (
+                    <div className="fixed bottom-10 right-10 glass-card p-4 flex items-center gap-3 text-blue-400 animate-pulse border-blue-500/20 shadow-lg shadow-blue-500/5">
+                        <CalendarIcon size={18} />
+                        <span className="text-xs font-bold uppercase tracking-widest">Updating Calendar...</span>
+                    </div>
+                )
+            }
 
             <DayDetailModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 data={selectedDayData}
+                onToggleTaskStatus={handleToggleTaskStatus}
+                isUpdating={loading}
             />
-        </div>
+        </div >
     );
 };
 

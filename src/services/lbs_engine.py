@@ -220,7 +220,13 @@ class LBSEngine:
             "level": level,
             "cap": cap,
             "tasks": [
-                {"task_id": t.task_id, "task_name": t.task_name, "context": t.context, "load": next(e for e in cache_entries if e.task_id == t.task_id).calculated_load}
+                {
+                    "task_id": t.task_id, 
+                    "task_name": t.task_name, 
+                    "context": t.context, 
+                    "load": next(e for e in cache_entries if e.task_id == t.task_id).calculated_load,
+                    "status": next(e for e in cache_entries if e.task_id == t.task_id).status
+                }
                 for t in tasks
             ]
         }

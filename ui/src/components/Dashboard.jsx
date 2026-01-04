@@ -4,7 +4,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
     LineChart, Line
 } from 'recharts';
-import { Activity, ShieldCheck, Zap, AlertTriangle } from 'lucide-react';
+import { Activity, ShieldCheck, Zap, AlertTriangle, CheckCircle2, Circle, XCircle } from 'lucide-react';
 
 const KPICard = ({ icon: Icon, label, value, subtext, color }) => (
     <div className="glass-card p-6 flex flex-col gap-2">
@@ -177,55 +177,97 @@ const Dashboard = ({ token, apiKey }) => {
                 </div>
             </div>
 
-            <div className="glass-card p-8">
-                <div className="flex justify-between items-center mb-8">
-                    <h3 className="font-bold text-lg">4-Week Prediction Trend</h3>
-                    <div className="flex items-center gap-4 bg-white/5 p-2 rounded-xl border border-white/5">
-                        <button
-                            onClick={() => {
-                                const d = new Date(trendStartDate);
-                                d.setDate(d.getDate() - 28);
-                                setTrendStartDate(d.toISOString().split('T')[0]);
-                            }}
-                            className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
-                        >
-                            Previous 4W
-                        </button>
-                        <span className="text-xs font-bold text-slate-300">
-                            Range: {new Date(trendStartDate).toLocaleDateString()} - {new Date(new Date(trendStartDate).getTime() + 28 * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                        </span>
-                        <button
-                            onClick={() => {
-                                const d = new Date(trendStartDate);
-                                d.setDate(d.getDate() + 28);
-                                setTrendStartDate(d.toISOString().split('T')[0]);
-                            }}
-                            className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
-                        >
-                            Next 4W
-                        </button>
+            <div className="grid grid-cols-3 gap-8">
+                <div className="col-span-2 glass-card p-8">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="font-bold text-lg">4-Week Prediction Trend</h3>
+                        <div className="flex items-center gap-4 bg-white/5 p-2 rounded-xl border border-white/5">
+                            <button
+                                onClick={() => {
+                                    const d = new Date(trendStartDate);
+                                    d.setDate(d.getDate() - 28);
+                                    setTrendStartDate(d.toISOString().split('T')[0]);
+                                }}
+                                className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
+                            >
+                                Previous 4W
+                            </button>
+                            <span className="text-xs font-bold text-slate-300">
+                                Range: {new Date(trendStartDate).toLocaleDateString()} - {new Date(new Date(trendStartDate).getTime() + 28 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                            </span>
+                            <button
+                                onClick={() => {
+                                    const d = new Date(trendStartDate);
+                                    d.setDate(d.getDate() + 28);
+                                    setTrendStartDate(d.toISOString().split('T')[0]);
+                                }}
+                                className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
+                            >
+                                Next 4W
+                            </button>
+                        </div>
+                    </div>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data.trends}>
+                                <defs>
+                                    <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                <XAxis dataKey="date" stroke="#475569" fontSize={11} tickFormatter={(str) => new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
+                                <YAxis stroke="#475569" fontSize={11} domain={[0, 12]} />
+                                <Tooltip
+                                    contentStyle={{ background: '#1a1a1f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                                    itemStyle={{ color: '#3b82f6' }}
+                                />
+                                <Area type="monotone" dataKey="average_load" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorLoad)" />
+                                <Line type="monotone" dataKey="max_load" stroke="#8b5cf6" strokeDasharray="5 5" dot={false} />
+                            </AreaChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={data.trends}>
-                            <defs>
-                                <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                            <XAxis dataKey="date" stroke="#475569" fontSize={11} tickFormatter={(str) => new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-                            <YAxis stroke="#475569" fontSize={11} domain={[0, 12]} />
-                            <Tooltip
-                                contentStyle={{ background: '#1a1a1f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                                itemStyle={{ color: '#3b82f6' }}
-                            />
-                            <Area type="monotone" dataKey="average_load" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorLoad)" />
-                            <Line type="monotone" dataKey="max_load" stroke="#8b5cf6" strokeDasharray="5 5" dot={false} />
-                        </AreaChart>
-                    </ResponsiveContainer>
+
+                {/* Today's Tasks Widget */}
+                <div className="glass-card p-6 flex flex-col">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-lg">Today's Tasks</h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold uppercase tracking-wider">
+                            {data.today.tasks.length} Total
+                        </span>
+                    </div>
+                    <div className="flex flex-col gap-3 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
+                        {data.today.tasks.length === 0 ? (
+                            <div className="text-center py-10 text-slate-500 text-sm">No tasks for today.</div>
+                        ) : (
+                            data.today.tasks.map((task, idx) => {
+                                const isDone = task.status === 'done';
+                                const isSkipped = task.status === 'skipped';
+                                return (
+                                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 group hover:bg-white/10 transition-all">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className={`text-sm font-bold truncate max-w-[140px] ${isDone ? 'text-emerald-400/70 line-through' : 'text-slate-200'}`}>
+                                                {task.task_name}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">{task.context}</span>
+                                                {task.status !== 'todo' && (
+                                                    <span className={`text-[8px] px-1 py-0.25 rounded-full font-bold uppercase ${isDone ? 'bg-emerald-500/20 text-emerald-400' : isSkipped ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                        {task.status}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className={`p-1.5 rounded-lg ${isDone ? 'text-emerald-400' : isSkipped ? 'text-amber-400' : 'text-slate-600'}`}>
+                                            {isDone ? <CheckCircle2 size={16} /> : isSkipped ? <XCircle size={16} /> : <Circle size={16} />}
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
