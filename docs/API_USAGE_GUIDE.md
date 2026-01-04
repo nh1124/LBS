@@ -142,25 +142,26 @@ All endpoints are prefixed with `/api/lbs`.
 ### Task Operations (`/tasks`)
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/tasks` | GET | List tasks. Query: `context`, `status` (todo/done), `active` (bool) |
-| `/tasks` | POST | Create a single task. (Supports `status`: todo/done) |
-| `/tasks/{id}` | GET | Get detailed task information |
-| `/tasks/{id}` | PUT | Update an existing task. (Allows changing `status`) |
+| `/tasks` | GET | List master task definitions. Query: `context`, `active` |
+| `/tasks` | POST | Create a single task. |
+| `/tasks/{id}` | GET | Get master task definition. Query: `target_date` (optional) |
+| `/tasks/{id}` | PUT | Update a master task definition. |
 | `/tasks/{id}` | DELETE | Delete a task |
 | `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
 | `/tasks/bulk-update-active` | POST | Update active status (archive/unarchive) |
-| `/tasks/{id}/complete`| POST | Record completion for a specific date in history. Payload: `{completed_date: "YYYY-MM-DD", status: bool}` |
-| `/tasks/upload-csv` | POST | Bulk import tasks via CSV. (Recognizes `status` column) |
+| `/tasks/{id}/complete`| POST | Record execution for a date. Payload: `{target_date: "YYYY-MM-DD", status: Enum}` |
+| `/tasks/{id}/history` | GET | Retrieve full execution history for a task. |
+| `/tasks/upload-csv` | POST | Bulk import tasks via CSV. |
 
-
-### Load Analysis & Insights
+### Daily Schedule & Analysis
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
+| `/schedule` | GET | **Unified Schedule**. Returns grouped tasks/loads between `start_date` and `end_date`. |
 | `/dashboard` | GET | Summary of current load and next-day predictions |
 | `/heatmap` | GET | Daily load distribution. Parameter: `include_completed` (bool) |
-| `/trends` | GET | Multi-week load trend predictions. Parameter: `include_completed` (bool) |
-| `/distribution/context` | GET | Load distribution grouped by task context. Parameter: `include_completed` (bool) |
-| `/calculate/{target_date}` | GET | Raw load calculation for a date. Parameter: `include_completed` (bool) |
+| `/trends` | GET | Multi-week load trend predictions. |
+| `/distribution/context` | GET | Load distribution grouped by task context. |
+| `/calculate/{target_date}` | GET | Raw load calculation for a date. |
 | `/expand` | POST | Force trigger task expansion for a range |
 | `/exceptions` | POST | Register a task exception (e.g. absence, priority shift) |
 

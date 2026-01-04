@@ -37,7 +37,7 @@ class TaskBase(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
-    status: Optional[TaskStatus] = TaskStatus.TODO
+    external_sync_id: Optional[str] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -64,7 +64,7 @@ class TaskUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
-    notes: Optional[str] = None
+    external_sync_id: Optional[str] = None
 
 class TaskBulkDelete(BaseModel):
     task_ids: List[str]
@@ -75,12 +75,31 @@ class TaskBulkActiveUpdate(BaseModel):
 
 class TaskExecutionRequest(BaseModel):
     target_date: date
-    status: bool = True
+    status: TaskStatus = TaskStatus.DONE
+
+class TaskExecutionResponse(BaseModel):
+    target_date: date
+    status: TaskStatus
+    class Config: from_attributes = True
 
 class TaskResponse(TaskBase):
     task_id: str
     active: bool
     class Config: from_attributes = True
+
+class ScheduleTask(BaseModel):
+    task_id: str
+    task_name: str
+    context: str
+    status: TaskStatus
+    load: float = Field(..., description="Calculated load (including exceptions)")
+    
+    class Config: from_attributes = True
+
+class DailySchedule(BaseModel):
+    date: date
+    total_load: float
+    tasks: List[ScheduleTask]
 
 class TaskDetail(TaskResponse):
     created_at: datetime

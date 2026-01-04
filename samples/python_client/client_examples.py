@@ -103,19 +103,26 @@ def run_task_filtering_example():
         })
         print(f"Created done task: {done_task['task_id']}")
 
-        # 2. List only active tasks (default)
+        # 3. List active tasks (Master data)
         active_tasks = client.list_tasks(active=True)
-        print(f"Active tasks found: {len(active_tasks)}")
+        print(f"Active master tasks found: {len(active_tasks)}")
 
-        # 3. List only completed tasks using Enum
-        completed_tasks = client.list_tasks(status=TaskStatus.DONE)
-        print(f"Completed (done) tasks found: {len(completed_tasks)}")
+        # 4. Get Daily Schedule (Grouped)
+        schedule = client.get_schedule(date.today(), date.today())
+        print(f"Schedule for today retrieved. Days: {len(schedule)}")
+        for day in schedule:
+            print(f"  Date: {day['date']}, Total Load: {day['total_load']}")
+            for t in day['tasks']:
+                print(f"    - {t['task_name']} ({t['status']}): Load {t['load']}")
 
-        # 4. Calculate load excluding completed tasks
-        load_no_done = client.calculate_load(date.today(), include_completed=False)
-        print(f"Today's load (excluding done): {load_no_done['adjusted_load']}")
+        # 5. Record execution and check history
+        client.toggle_task_completion(done_task['task_id'], date.today(), status=TaskStatus.DONE)
+        print(f"Marked task {done_task['task_id']} as DONE for today.")
+        
+        history = client.get_task_history(done_task['task_id'], date.today(), date.today())
+        print(f"Execution history for task: {len(history)} record(s) found.")
 
-        # 5. Calculate load including completed tasks
+        # 6. Calculate relative loads
         load_with_done = client.calculate_load(date.today(), include_completed=True)
         print(f"Today's load (including done): {load_with_done['adjusted_load']}")
 

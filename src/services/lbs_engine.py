@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskExecution
+from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskExecution, TaskStatus
 from ..config import settings
 
 class LBSEngine:
@@ -121,14 +121,13 @@ class LBSEngine:
             
         # Execution check: Source of Truth for completion
         execution = executions_dict.get((task.task_id, day_date))
-        is_completed = execution and execution.status == "done"
 
         cache_entries.append(LBSDailyCache(
             user_id=self.user_id,
             target_date=day_date,
             task_id=task.task_id,
             calculated_load=load,
-            status="completed" if is_completed else "planned"
+            status=execution.status if execution else TaskStatus.TODO
         ))
 
     def _should_task_occur(self, task: Task, target_date: date) -> bool:
@@ -171,11 +170,11 @@ class LBSEngine:
         query = self.session.query(LBSDailyCache).filter(
             LBSDailyCache.user_id == self.user_id,
             LBSDailyCache.target_date == target_date,
-            LBSDailyCache.status != "skipped"
+            LBSDailyCache.status != TaskStatus.SKIPPED
         )
         
         if not include_completed:
-            query = query.filter(LBSDailyCache.status != "completed")
+            query = query.filter(LBSDailyCache.status != TaskStatus.DONE)
             
         cache_entries = query.all()
         
@@ -293,11 +292,11 @@ class LBSEngine:
             query = self.session.query(LBSDailyCache).filter(
                 LBSDailyCache.user_id == self.user_id,
                 LBSDailyCache.target_date == curr,
-                LBSDailyCache.status != "skipped"
+                LBSDailyCache.status != TaskStatus.SKIPPED
             )
             
             if not include_completed:
-                query = query.filter(LBSDailyCache.status != "completed")
+                query = query.filter(LBSDailyCache.status != TaskStatus.DONE)
                 
             cache_entries = query.all()
             

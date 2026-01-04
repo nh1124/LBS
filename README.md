@@ -4,12 +4,12 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 
 ## Features
 
--   **Load Balancing Engine**: Core logic for task distribution and scaling.
--   **CSV Task Import**: Support for bulk task registration from CSV files.
--   **Integrated Registration UI**: Easy user onboarding directly through the browser.
--   **Maintenance UI**: User-friendly glassmorphism interface for monitoring and management.
--   **API**: RESTful API built with FastAPI for system interaction.
--   **Database**: PostgreSQL for robust data persistence.
+-   **Dual-Layer Architecture**: Clean separation between **Master Task Definitions** and **Daily Execution Schedules**.
+-   **High-Performance Schedule API**: A unified endpoint for daily loads and grouped task states using optimized server-side caching.
+-   **Execution History**: Granular tracking of task outcomes (`DONE`, `SKIPPED`, `IN_PROGRESS`) with progress and time tracking.
+-   **CSV Task Import**: Support for bulk task registration with advanced recurrence rules.
+-   **Cognitive Load Balancing**: Automatic load calculation with adaptive penalties for context switching and task density.
+-   **Integrated Python Client**: Ready-to-use SDK for AI agents and automation.
 
 ## Tech Stack
 
@@ -54,28 +54,29 @@ LBS is a comprehensive Load Balancing System that manages and schedules tasks. I
 
 ## Project Structure
 
--   `src/`: Backend source code (API, Services, Models).
--   `ui/`: Frontend source code (React App).
--   `samples/`: Integration samples and templates.
+-   `src/`: Backend source code (FastAPI, LBS Engine, Data Models).
+-   `ui/`: Frontend source code (Vite + React Glassmorphism Dashboard).
+-   `docs/`: System design and API usage guidelines.
+-   `samples/`: Integration samples and the core Python Client.
+-   `samples/python_client/`: Official LBS Python SDK.
 -   `samples/tasks_template.csv`: Template for bulk task import.
 -   `docker-compose.yml`: Service definitions.
 -   `.env.example`: Sample environment configuration.
 
-## Samples & Integration
+## Samples & Python Client
 
-Integration samples for external systems can be found in the `samples/api_integration` directory.
+LBS provides an official Python Client for high-level integration, located in `samples/python_client`.
 
-- `sample_x_api_key.py`: Demonstrates authentication using the `X-API-KEY` header.
-- `sample_external_token.py`: Demonstrates authentication using the `Authorization: Bearer <token>` header (External System Token).
+- `lbs_client.py`: The core `LBSClient` class.
+- `client_examples.py`: Examples for task management, schedule retrieval, and history tracking.
 
-To run the samples, ensure you have the `requests` library installed:
-```bash
-pip install requests
-```
-Set the necessary environment variables:
-```bash
-export LBS_API_KEY="your_api_key"
-python samples/api_integration/sample_x_api_key.py
+To use the client:
+```python
+from samples.python_client.lbs_client import LBSClient, TaskStatus
+from datetime import date
+
+client = LBSClient(base_url="http://localhost:8100/api/lbs", api_key="your_key")
+schedule = client.get_schedule(date.today(), date.today())
 ```
 
 ## Authentication & Security
@@ -113,11 +114,16 @@ LBS uses a **Local-First** authentication model with optional **External System 
 
 ### Usage Examples (Curl)
 ```bash
-# Using API Key
-curl -H "X-API-KEY: your-secret-key" http://localhost:8100/api/lbs/tasks
+# Get Master Tasks
+curl -H "X-API-KEY: your-key" http://localhost:8100/api/lbs/tasks
 
-# Using JWT
-curl -H "Authorization: Bearer <token>" http://localhost:8100/api/lbs/tasks
+# Get Daily Schedule (Source of Truth)
+curl -H "X-API-KEY: your-key" "http://localhost:8100/api/lbs/schedule?start_date=2024-01-01&end_date=2024-01-01"
+
+# Record Execution
+curl -X POST -H "X-API-KEY: your-key" -H "Content-Type: application/json" \
+     -d '{"target_date": "2024-01-01", "status": "done"}' \
+     http://localhost:8100/api/lbs/tasks/T-12345/complete
 ```
 
 ### Configuration (Environment Variables)

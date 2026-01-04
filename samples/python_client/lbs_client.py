@@ -5,9 +5,11 @@ import enum
 from typing import List, Optional, Dict, Any, Union
 
 class TaskStatus(str, enum.Enum):
-    """Possible statuses for an LBS task."""
+    """Possible statuses for an LBS task execution."""
     TODO = "todo"
     DONE = "done"
+    SKIPPED = "skipped"
+    IN_PROGRESS = "in_progress"
 
 class LBSClient:
     """
@@ -151,26 +153,31 @@ class LBSClient:
 
     # --- Task Operations ---
 
-    def list_tasks(self, context: Optional[str] = None, status: Optional[Union[str, TaskStatus]] = None, active: Optional[bool] = None) -> List[Dict]:
+    def list_tasks(self, context: Optional[str] = None, active: Optional[bool] = None) -> List[Dict]:
         """
-        List tasks, optionally filtered by context, status, and active flag.
+        List task definitions (Master data).
         
         :param context: Filter by task context string.
-        :param status: Filter by task status (e.g., 'todo', 'done' or TaskStatus enum).
         :param active: Filter by active status (True/False).
         """
         params = {}
         if context:
             params["context"] = context
-        if status:
-            params["status"] = status.value if isinstance(status, TaskStatus) else status
         if active is not None:
             params["active"] = str(active).lower()
         return self._request("GET", "tasks", params=params)
 
-    def get_task(self, task_id: str) -> Dict:
-        """Get detailed task information."""
-        return self._request("GET", f"tasks/{task_id}")
+    def get_task(self, task_id: str, target_date: Optional[Union[date, str]] = None) -> Dict:
+        """
+        Get detailed task information.
+        
+        :param task_id: The task ID.
+        :param target_date: Optional specific date to resolve dynamic status for.
+        """
+        params = {}
+        if target_date:
+            params["target_date"] = target_date.isoformat() if isinstance(target_date, date) else target_date
+        return self._request("GET", f"tasks/{task_id}", params=params)
 
     def create_task(self, task_data: Dict) -> Dict:
         """Create a new LBS task."""
@@ -192,18 +199,33 @@ class LBSClient:
         """Update active status (archive/unarchive) for multiple tasks."""
         return self._request("POST", "tasks/bulk-update-active", json={"task_ids": task_ids, "active": active})
 
-    def toggle_task_completion(self, task_id: str, target_date: Union[date, str], status: bool = True) -> Dict:
+    def toggle_task_completion(self, task_id: str, target_date: Union[date, str], status: Union[bool, TaskStatus] = TaskStatus.DONE) -> Dict:
         """
-        Mark a specific task instance as completed (or todo) for a particular date.
-        This is the preferred way to complete recurring tasks without affecting master status.
+        Record a specific task execution status for a particular date.
+        
+        :param status: Can be boolean True (maps to DONE), False (maps to TODO), 
+                       or a TaskStatus enum value (DONE, SKIPPED, IN_PROGRESS, TODO).
         """
         date_str = target_date.isoformat() if isinstance(target_date, date) else target_date
-        return self._request("POST", f"tasks/{task_id}/complete", json={"completed_date": date_str, "status": status})
+        
+        # Convert boolean to Enum for backward compatibility or ease of use
+        if isinstance(status, bool):
+            status_val = TaskStatus.DONE if status else TaskStatus.TODO
+        else:
+            status_val = status
+            
+        return self._request("POST", f"tasks/{task_id}/complete", json={
+            "target_date": date_str, 
+            "status": status_val.value if isinstance(status_val, TaskStatus) else status_val
+        })
 
-    def update_task_progress(self, task_id: str, status: Union[str, TaskStatus]) -> Dict:
-        """Update the master progress status of a task (affects all future instances)."""
-        status_val = status.value if isinstance(status, TaskStatus) else status
-        return self.update_task(task_id, {"status": status_val})
+    def get_task_history(self, task_id: str, start_date: Union[date, str], end_date: Union[date, str]) -> List[Dict]:
+        """Get historical execution records for a specific task."""
+        params = {
+            "start_date": start_date.isoformat() if isinstance(start_date, date) else start_date,
+            "end_date": end_date.isoformat() if isinstance(end_date, date) else end_date
+        }
+        return self._request("GET", f"tasks/{task_id}/history", params=params)
 
     def upload_csv(self, file_path: str) -> Dict:
         """Bulk import tasks via CSV file."""
@@ -256,6 +278,17 @@ class LBSClient:
         target = target_date.isoformat() if isinstance(target_date, date) else target_date
         params = {"include_completed": str(include_completed).lower()}
         return self._request("GET", f"calculate/{target}", params=params)
+
+    def get_schedule(self, start_date: Union[date, str], end_date: Union[date, str]) -> List[Dict]:
+        """
+        Get daily schedule (Source of Truth).
+        Returns grouped list of dates with associated tasks and loads.
+        """
+        params = {
+            "start_date": start_date.isoformat() if isinstance(start_date, date) else start_date,
+            "end_date": end_date.isoformat() if isinstance(end_date, date) else end_date
+        }
+        return self._request("GET", "schedule", params=params)
 
     def force_expand(self, start_date: Union[date, str], end_date: Union[date, str]) -> Dict:
         """Force trigger task expansion for a range."""

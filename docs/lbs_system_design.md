@@ -57,6 +57,7 @@ erDiagram
     USERS ||--o{ TASKS : owns
     USERS ||--o{ SYSTEM_CONFIG : configures
     TASKS ||--o{ TASK_EXCEPTIONS : has
+    TASKS ||--o{ TASK_EXECUTIONS : has_history
     TASKS ||--o{ LBS_DAILY_CACHE : expands_to
     
     USERS {
@@ -99,6 +100,17 @@ erDiagram
         string status
         boolean is_overflow
     }
+
+    TASK_EXECUTIONS {
+        int id PK
+        uuid user_id FK
+        string task_id FK
+        date target_date
+        string status
+        int progress
+        int actual_time
+        datetime created_at
+    }
 ```
 ### 4.2 Tasks Table (Full Schema)
 | Field | Type | Description |
@@ -109,30 +121,21 @@ erDiagram
 | `context` | String | Project/Spoke tag |
 | `base_load_score` | Float | 0.0 – 10.0 |
 | `active` | Boolean | Enabled flag |
-| `status` | Enum | Task progress (`todo`, `done`) |
 | `rule_type` | Enum | Recurrence type |
 
-### 4.2 Task Completion History Table (`task_completions`)
-Stores individual completion events for tasks, specifically to handle recurring instances.
+### 4.2 Task Execution History Table (`task_executions`)
+Stores individual outcomes for task instances (done, skipped, in-progress).
 
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | Integer | PK |
 | `user_id` | String | FK to Users |
 | `task_id` | String | FK to Tasks |
-| `completed_date`| Date | The specific date the task was completed |
+| `target_date`| Date | The specific date this execution refers to |
+| `status` | Enum | `done`, `skipped`, `in_progress`, `todo` |
+| `progress` | Int | 0-100 |
+| `actual_time`| Int | Minutes spent (optional) |
 | `created_at` | DateTime | Timestamp of recording |
-| `due_date` | Date | For ONCE tasks |
-| `mon`–`sun` | Boolean | Weekday flags (WEEKLY) |
-| `interval_days` | Int | Days between (EVERY_N_DAYS) |
-| `anchor_date` | Date | Recurrence start reference |
-| `month_day` | Int | 1-31 (MONTHLY_DAY) |
-| `nth_in_month` | Int | 1-5 or -1 (MONTHLY_NTH_WEEKDAY) |
-| `weekday_mon1` | Int | 1=Mon...7=Sun |
-| `start_date` | Date | Validity start |
-| `end_date` | Date | Validity end |
-| `notes` | Text | User notes |
-| `external_sync_id` | String | MS ToDo ID (future) |
 ### 4.3 Exception Types
 | Type | Behavior |
 |------|----------|
@@ -172,8 +175,8 @@ For each date in [start_date, end_date]:
        - MONTHLY_NTH_WEEKDAY: is Nth weekday of month
     
     3. Completion & Exception Check
-       - IF exists in `task_completions` for `target_date`: status = "completed"
-       - ELSE: status = "planned"
+       - IF exists in `task_executions` for `target_date`: status = execution.status
+       - ELSE: status = "planned" (mapped to `todo` in cache)
        
        - Exception: IF `task_exceptions` for `target_date` is `omit`: status = "skipped"
     
@@ -214,16 +217,19 @@ $$
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/lbs/dashboard` | Weekly dashboard with KPIs |
-| GET | `/api/lbs/calculate/{date}` | Daily load calculation (supports `include_completed`) |
+| GET | `/api/lbs/schedule` | Unified schedule (grouped by date) |
+| GET | `/api/lbs/calculate/{date}` | Daily load calculation |
 | POST | `/api/lbs/expand` | Trigger rule expansion |
-| GET | `/api/lbs/tasks` | List user's tasks (supports `status`, `active`, `context`) |
-| GET | `/api/lbs/tasks/{id}` | Get task details |
+| GET | `/api/lbs/tasks` | List master tasks (active, context filters) |
+| GET | `/api/lbs/tasks/{id}` | Get master task (supports `target_date`) |
+| GET | `/api/lbs/tasks/{id}/history`| Get task execution history |
+| POST | `/api/lbs/tasks/{id}/complete`| Record/Update execution status |
 | POST | `/api/lbs/tasks` | Create task |
 | PUT | `/api/lbs/tasks/{id}` | Update task |
 | DELETE | `/api/lbs/tasks/{id}` | Delete task |
-| GET | `/api/lbs/heatmap` | Calendar heatmap (supports `include_completed`) |
-| GET | `/api/lbs/trends` | Weekly trends (supports `include_completed`) |
-| GET | `/api/lbs/context-distribution`| Context breakdown (supports `include_completed`) |
+| GET | `/api/lbs/heatmap` | Calendar heatmap |
+| GET | `/api/lbs/trends` | Weekly trends |
+| GET | `/api/lbs/context-distribution`| Context breakdown |
 ---
 ## 7. Project Structure
 ```
