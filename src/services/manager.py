@@ -13,8 +13,16 @@ class LBSManager:
         config = self.repo.get_system_config(user_id)
         self.engine = LBSEngine(config)
 
-    def refresh_schedule(self, start_date: date, end_date: date):
-        """Refresh the daily cache for the given range"""
+    def refresh_schedule(self, start_date: date, end_date: date, force: bool = False):
+        """Refresh the daily cache for the given range, with debouncing"""
+        if not force:
+            # Check if we have recent cache entries to avoid redundant refreshes in high-concurrency reloads
+            recent_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, end_date)
+            if recent_entries:
+                latest_gen = max(e.generated_at for e in recent_entries)
+                # If cache was generated in the last 30 seconds, skip the refresh
+                if datetime.utcnow() - latest_gen < timedelta(seconds=30):
+                    return
         tasks = self.repo.get_active_tasks(self.user_id)
         executions = self.repo.get_executions_in_range(self.user_id, start_date, end_date)
         exceptions = self.repo.get_exceptions_in_range(self.user_id, start_date, end_date)
@@ -89,7 +97,7 @@ class LBSManager:
         self.session.commit()
         
         # Re-calculate and refresh for the specific day
-        self.refresh_schedule(target_date, target_date)
+        self.refresh_schedule(target_date, target_date, force=True)
         
         return {"message": f"Task execution updated: {status}", "status": status}
 
@@ -146,13 +154,13 @@ class LBSManager:
         # Trigger refresh
         expand_start = task.start_date or date.today()
         expand_end = task.end_date or (date.today() + timedelta(days=90))
-        self.refresh_schedule(expand_start, expand_end)
+        self.refresh_schedule(expand_start, expand_end, force=True)
         return task
 
     def bulk_create_tasks(self, tasks: List[Task], start: date, end: date):
         self.repo.bulk_create_tasks(tasks)
         self.session.commit()
-        self.refresh_schedule(start, end)
+        self.refresh_schedule(start, end, force=True)
 
     def update_task(self, task_id: str, update_data: Dict[str, Any]) -> Optional[Task]:
         task = self.repo.get_task(self.user_id, task_id)
@@ -169,7 +177,7 @@ class LBSManager:
         
         expand_start = task.start_date or date.today()
         expand_end = task.end_date or (date.today() + timedelta(days=90))
-        self.refresh_schedule(expand_start, expand_end)
+        self.refresh_schedule(expand_start, expand_end, force=True)
         return task
 
     def delete_task(self, task_id: str) -> bool:
@@ -179,14 +187,14 @@ class LBSManager:
         
         self.repo.delete_task(task)
         self.session.commit()
-        self.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+        self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
         return True
 
     def bulk_delete_tasks(self, task_ids: List[str]) -> int:
         count = self.repo.bulk_delete_tasks(self.user_id, task_ids)
         if count > 0:
             self.session.commit()
-            self.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+            self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
         return count
 
     def bulk_update_active(self, task_ids: List[str], active: bool) -> int:
@@ -196,7 +204,7 @@ class LBSManager:
             for t in tasks:
                 t.updated_at = datetime.utcnow()
             self.session.commit()
-            self.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+            self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
         return len(tasks)
 
     def get_task_history(self, task_id: str, start_date: date, end_date: date) -> List[TaskExecution]:
@@ -210,4 +218,4 @@ class LBSManager:
         )
         self.repo.create_exception(new_exc)
         self.session.commit()
-        self.refresh_schedule(new_exc.target_date, new_exc.target_date)
+        self.refresh_schedule(new_exc.target_date, new_exc.target_date, force=True)
