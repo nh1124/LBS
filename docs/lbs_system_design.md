@@ -21,20 +21,32 @@ flowchart TB
         TaskMgmt["AI TaskManagement OS"]
     end
     
-    subgraph LBS_Service["LBS Microservice :8001"]
+subgraph LBS_Service["LBS Microservice :8001"]
         Auth["Auth Layer"]
         API["FastAPI /api/lbs/*"]
-        Engine["LBSEngine<br>(user-scoped)"]
+        Manager["LBSManager<br>(Orchestrator)"]
+        Repo["TaskRepository<br>(Data Access)"]
+        Engine["LBSEngine<br>(Pure Logic)"]
         DB[(Database)]
     end
     
     Clients -->|"JWT / API Key"| Auth
     Auth --> API
-    API --> Engine
-    Engine --> DB
+    API --> Manager
+    Manager --> Repo
+    Manager --> Engine
+    Repo --> DB
 ```
 ---
-## 3. User Identification
+## 3. System Layers
+| Layer | Core Class | Role |
+|-------|------------|------|
+| **API Layer** | `FastAPI Router` | Handles HTTP requests, validation, and JSON conversion. |
+| **Service Layer** | `LBSManager` | Orchestrates flows. Connects Repository and Engine. Manages DB sessions. |
+| **Logic Layer** | `LBSEngine` | **Pure Engine**. Contains calculation logic (Alpha/Beta/Context switch). No DB dependency. |
+| **Repository Layer** | `TaskRepository` | Encapsulates all SQLAlchemy queries and DB operations. |
+---
+## 4. User Identification
 ### Authentication Methods
 | Method | Header | Use Case |
 |--------|--------|----------|
@@ -242,7 +254,9 @@ LBS/
 │   │   ├── database.py
 │   │   └── user.py
 │   ├── services/
-│   │   └── lbs_engine.py
+│   │   ├── lbs_engine.py
+│   │   ├── manager.py
+│   │   └── repository.py
 │   └── api/
 │       ├── routes.py
 │       ├── users.py
