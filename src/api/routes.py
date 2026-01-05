@@ -68,22 +68,12 @@ def create_task(
     task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
     try:
         db_task = Task(
-            **task_in.dict(exclude={'status'}),
+            **task_in.model_dump(exclude={'status'}),
             task_id=task_id,
             user_id=identity.user_id
         )
-        manager.repo.create_task(db_task)
-        db.commit()
-        db.refresh(db_task)
-        
-        # Trigger refresh
-        expand_start = db_task.start_date or date.today()
-        expand_end = db_task.end_date or (date.today() + timedelta(days=90))
-        manager.refresh_schedule(expand_start, expand_end)
-        
-        return db_task
+        return manager.create_task(db_task)
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tasks", response_model=List[TaskResponse])
@@ -94,13 +84,7 @@ def list_tasks(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    # Using repo directly for simple list
-    query = db.query(Task).filter(Task.user_id == identity.user_id)
-    if active is not None:
-        query = query.filter(Task.active == active)
-    if context:
-        query = query.filter(Task.context == context)
-    return query.all()
+    return manager.list_tasks(context=context, active=active)
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task_detail(
@@ -123,17 +107,11 @@ def get_task_history(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    task = manager.repo.get_task(identity.user_id, task_id)
+    task = manager.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    executions = db.query(TaskExecution).filter(
-        TaskExecution.task_id == task_id,
-        TaskExecution.target_date >= start_date,
-        TaskExecution.target_date <= end_date
-    ).order_by(TaskExecution.target_date.asc()).all()
-    
-    return executions
+    return manager.get_task_history(task_id, start_date, end_date)
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 def update_task(
@@ -143,23 +121,12 @@ def update_task(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    db_task = manager.repo.get_task(identity.user_id, task_id)
-    if not db_task:
+    update_data = task_in.model_dump(exclude_unset=True)
+    updated_task = manager.update_task(task_id, update_data)
+    if not updated_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    update_data = task_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_task, field, value)
-    
-    db_task.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(db_task)
-    
-    expand_start = db_task.start_date or date.today()
-    expand_end = db_task.end_date or (date.today() + timedelta(days=90))
-    manager.refresh_schedule(expand_start, expand_end)
-    
-    return db_task
+    return updated_task
 
 @router.post("/tasks/upload-csv")
 def upload_tasks_csv(
@@ -220,9 +187,7 @@ def upload_tasks_csv(
             continue
 
     if tasks_to_create:
-        db.add_all(tasks_to_create)
-        db.commit()
-        manager.refresh_schedule(min_start, max_end)
+        manager.bulk_create_tasks(tasks_to_create, min_start, max_end)
         
     return {"message": f"Successfully imported {len(tasks_to_create)} tasks"}
 
@@ -233,13 +198,8 @@ def delete_task(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    db_task = manager.repo.get_task(identity.user_id, task_id)
-    if not db_task:
+    if not manager.delete_task(task_id):
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    manager.repo.delete_task(db_task)
-    db.commit()
-    manager.refresh_schedule(date.today(), date.today() + timedelta(days=90))
     return {"message": "Task deleted successfully"}
 
 @router.post("/tasks/bulk-delete")
@@ -249,16 +209,11 @@ def bulk_delete_tasks(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    count = db.query(Task).filter(
-        Task.task_id.in_(bulk_in.task_ids),
-        Task.user_id == identity.user_id
-    ).delete(synchronize_session='fetch')
+    count = manager.bulk_delete_tasks(bulk_in.task_ids)
     
     if count == 0:
         return {"message": "No tasks found to delete"}
     
-    db.commit()
-    manager.refresh_schedule(date.today(), date.today() + timedelta(days=90))
     return {"message": f"Successfully deleted {count} tasks"}
 
 @router.post("/tasks/bulk-update-active")
@@ -268,21 +223,12 @@ def bulk_update_active(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    tasks = db.query(Task).filter(
-        Task.task_id.in_(bulk_in.task_ids),
-        Task.user_id == identity.user_id
-    ).all()
+    count = manager.bulk_update_active(bulk_in.task_ids, bulk_in.active)
     
-    if not tasks:
+    if count == 0:
         return {"message": "No tasks found to update"}
     
-    for t in tasks:
-        t.active = bulk_in.active
-        t.updated_at = datetime.utcnow()
-    
-    db.commit()
-    manager.refresh_schedule(date.today(), date.today() + timedelta(days=90))
-    return {"message": f"Successfully updated active status for {len(tasks)} tasks"}
+    return {"message": f"Successfully updated active status for {count} tasks"}
 
 @router.post("/tasks/{task_id}/complete")
 def handle_task_completion(
@@ -305,17 +251,11 @@ def create_exception(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    task = manager.repo.get_task(identity.user_id, exc.task_id)
+    task = manager.get_task(exc.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    new_exc = TaskException(
-        **exc.dict(),
-        user_id=identity.user_id
-    )
-    manager.repo.create_exception(new_exc)
-    db.commit()
-    manager.refresh_schedule(exc.target_date, exc.target_date)
+    manager.create_exception(exc.model_dump())
     return {"message": "Exception created successfully"}
 
 @router.get("/calculate/{target_date}")

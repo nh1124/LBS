@@ -126,9 +126,82 @@ class LBSManager:
         
         return self.engine.get_trend_data(weeks, start_date, end_date, cache_entries, tasks, include_completed)
 
-    def get_context_distribution(self, start: date, end: date, include_completed: bool = True) -> List[Dict]:
-        self.refresh_schedule(start, end)
-        cache_entries = self.repo.get_daily_cache_in_range(self.user_id, start, end)
-        tasks = self.repo.get_active_tasks(self.user_id)
+    def list_tasks(self, context: Optional[str] = None, active: Optional[bool] = None) -> List[Task]:
+        return self.repo.list_tasks(self.user_id, context, active)
+
+    def get_task(self, task_id: str) -> Optional[Task]:
+        return self.repo.get_task(self.user_id, task_id)
+
+    def create_task(self, task: Task) -> Task:
+        self.repo.create_task(task)
+        self.session.commit()
+        self.session.refresh(task)
         
-        return self.engine.get_context_distribution(start, end, cache_entries, tasks, include_completed)
+        # Trigger refresh
+        expand_start = task.start_date or date.today()
+        expand_end = task.end_date or (date.today() + timedelta(days=90))
+        self.refresh_schedule(expand_start, expand_end)
+        return task
+
+    def bulk_create_tasks(self, tasks: List[Task], start: date, end: date):
+        self.repo.bulk_create_tasks(tasks)
+        self.session.commit()
+        self.refresh_schedule(start, end)
+
+    def update_task(self, task_id: str, update_data: Dict[str, Any]) -> Optional[Task]:
+        task = self.repo.get_task(self.user_id, task_id)
+        if not task:
+            return None
+        
+        for field, value in update_data.items():
+            setattr(task, field, value)
+        
+        from datetime import datetime
+        task.updated_at = datetime.utcnow()
+        self.session.commit()
+        self.session.refresh(task)
+        
+        expand_start = task.start_date or date.today()
+        expand_end = task.end_date or (date.today() + timedelta(days=90))
+        self.refresh_schedule(expand_start, expand_end)
+        return task
+
+    def delete_task(self, task_id: str) -> bool:
+        task = self.repo.get_task(self.user_id, task_id)
+        if not task:
+            return False
+        
+        self.repo.delete_task(task)
+        self.session.commit()
+        self.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+        return True
+
+    def bulk_delete_tasks(self, task_ids: List[str]) -> int:
+        count = self.repo.bulk_delete_tasks(self.user_id, task_ids)
+        if count > 0:
+            self.session.commit()
+            self.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+        return count
+
+    def bulk_update_active(self, task_ids: List[str], active: bool) -> int:
+        tasks = self.repo.bulk_update_active(self.user_id, task_ids, active)
+        if tasks:
+            from datetime import datetime
+            for t in tasks:
+                t.updated_at = datetime.utcnow()
+            self.session.commit()
+            self.refresh_schedule(date.today(), date.today() + timedelta(days=90))
+        return len(tasks)
+
+    def get_task_history(self, task_id: str, start_date: date, end_date: date) -> List[TaskExecution]:
+        return self.repo.get_task_history(task_id, start_date, end_date)
+
+    def create_exception(self, exception_data: Dict[str, Any]) -> None:
+        from ..models.database import TaskException
+        new_exc = TaskException(
+            **exception_data,
+            user_id=self.user_id
+        )
+        self.repo.create_exception(new_exc)
+        self.session.commit()
+        self.refresh_schedule(new_exc.target_date, new_exc.target_date)
