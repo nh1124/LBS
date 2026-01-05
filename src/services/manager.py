@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
 from .repository import TaskRepository
@@ -23,8 +23,14 @@ class LBSManager:
             self.user_id, start_date, end_date, tasks, executions, exceptions
         )
         
-        self.repo.update_daily_cache(self.user_id, start_date, end_date, cache_entries)
-        self.session.commit()
+        from sqlalchemy.exc import IntegrityError
+        try:
+            self.repo.update_daily_cache(self.user_id, start_date, end_date, cache_entries)
+            self.session.commit()
+        except IntegrityError:
+            self.session.rollback()
+            # If another thread already inserted the cache, we can just continue
+            pass
 
     def get_schedule(self, start_date: date, end_date: date) -> List[Dict]:
         """Get the schedule from cache, refreshing if necessary (caller should ideally handle refresh logic or manager does it)"""

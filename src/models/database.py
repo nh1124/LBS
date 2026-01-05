@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, create_engine, Enum as SAEnum
+from sqlalchemy import Column, String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, create_engine, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
 import enum
@@ -91,6 +91,10 @@ class LBSDailyCache(Base):
     status = Column(SAEnum(TaskStatus, native_enum=False), default=TaskStatus.TODO)
     is_overflow = Column(Boolean, default=False)
     generated_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'task_id', 'target_date', name='_user_task_date_uc'),
+    )
 
 # DB setup
 # Handle SQLite specific arguments

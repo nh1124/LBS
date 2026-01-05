@@ -65,10 +65,10 @@ class TaskRepository:
             # SQLAlchemy might need these to be associated with the session if they aren't already
             self.session.bulk_save_objects(entries)
 
-    def bulk_create_tasks(self, tasks: List[Task]):
-        self.session.bulk_save_objects(tasks)
-
     # CRUD for Task
+    def create_task(self, task: Task):
+        self.session.add(task)
+
     def get_task(self, user_id: str, task_id: str) -> Optional[Task]:
         return self.session.query(Task).filter(Task.task_id == task_id, Task.user_id == user_id).first()
 
@@ -80,17 +80,11 @@ class TaskRepository:
             query = query.filter(Task.context == context)
         return query.all()
 
-    def create_task(self, task: Task):
-        self.session.add(task)
-
     def delete_task(self, task: Task):
         self.session.delete(task)
 
-    def bulk_delete_tasks(self, user_id: str, task_ids: List[str]) -> int:
-        return self.session.query(Task).filter(
-            Task.task_id.in_(task_ids),
-            Task.user_id == user_id
-        ).delete(synchronize_session='fetch')
+    def bulk_create_tasks(self, tasks: List[Task]):
+        self.session.bulk_save_objects(tasks)
 
     def bulk_update_active(self, user_id: str, task_ids: List[str], active: bool) -> List[Task]:
         tasks = self.session.query(Task).filter(
@@ -101,7 +95,16 @@ class TaskRepository:
             t.active = active
         return tasks
 
+    def bulk_delete_tasks(self, user_id: str, task_ids: List[str]) -> int:
+        return self.session.query(Task).filter(
+            Task.task_id.in_(task_ids),
+            Task.user_id == user_id
+        ).delete(synchronize_session='fetch')
+
     # CRUD for Execution
+    def create_execution(self, execution: TaskExecution):
+        self.session.add(execution)
+
     def get_execution(self, user_id: str, task_id: str, target_date: date) -> Optional[TaskExecution]:
         return self.session.query(TaskExecution).filter(
             TaskExecution.user_id == user_id,
@@ -115,9 +118,6 @@ class TaskRepository:
             TaskExecution.target_date >= start_date,
             TaskExecution.target_date <= end_date
         ).order_by(TaskExecution.target_date.asc()).all()
-
-    def create_execution(self, execution: TaskExecution):
-        self.session.add(execution)
 
     def delete_execution(self, execution: TaskExecution):
         self.session.delete(execution)
