@@ -73,29 +73,43 @@ class LBSManager:
         return sorted(schedule_map.values(), key=lambda x: x["date"])
 
     def update_task_execution(self, task_id: str, target_date: date, status: TaskStatus) -> Dict:
-        """Update task execution and refresh the specific day's cache"""
-        existing = self.repo.get_execution(self.user_id, task_id, target_date)
+        """Update task execution and refresh the specific day's cache (Race-condition safe)"""
+        from sqlalchemy.exc import IntegrityError
         
-        if status == TaskStatus.TODO:
-            if existing:
-                self.repo.delete_execution(existing)
-        else:
-            if not existing:
-                existing = TaskExecution(
-                    user_id=self.user_id,
-                    task_id=task_id,
-                    target_date=target_date,
-                    status=status,
-                    progress=100 if status == TaskStatus.DONE else 0
-                )
-                self.repo.create_execution(existing)
-            else:
-                existing.status = status
-                if status == TaskStatus.DONE:
-                    existing.progress = 100
-        
-        self.session.commit()
-        
+        # Max retries to prevent infinite loop in case of unusual DB errors
+        max_retries = 3
+        for attempt in range(max_retries):
+            existing = self.repo.get_execution(self.user_id, task_id, target_date)
+            
+            try:
+                if status == TaskStatus.TODO:
+                    if existing:
+                        self.repo.delete_execution(existing)
+                else:
+                    if not existing:
+                        existing = TaskExecution(
+                            user_id=self.user_id,
+                            task_id=task_id,
+                            target_date=target_date,
+                            status=status,
+                            progress=100 if status == TaskStatus.DONE else 0
+                        )
+                        self.repo.create_execution(existing)
+                    else:
+                        existing.status = status
+                        if status == TaskStatus.DONE:
+                            existing.progress = 100
+                
+                self.session.commit()
+                break # Success
+            except IntegrityError:
+                self.session.rollback()
+                if attempt == max_retries - 1:
+                    raise # Re-raise if we've exhausted retries
+                # In case of IntegrityError, another request likely created the record.
+                # Loop back, get_execution will find it, and we proceed to update.
+                continue
+
         # Re-calculate and refresh for the specific day
         self.refresh_schedule(target_date, target_date, force=True)
         

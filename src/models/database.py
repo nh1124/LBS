@@ -78,6 +78,10 @@ class TaskExecution(Base):
     progress = Column(Integer, default=100)
     actual_time = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'task_id', 'target_date', name='uq_task_execution_user_date'),
+    )
 
 class LBSDailyCache(Base):
     """Expanded task cache"""
