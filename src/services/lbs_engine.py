@@ -116,7 +116,7 @@ class LBSEngine:
         
         return False
 
-    def calculate_daily_load_pure(self, target_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
+    def calculate_daily_load(self, target_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
         """Pure calculation of daily load from cache entries and task metadata"""
         alpha = self.config["ALPHA"]
         beta = self.config["BETA"]
@@ -186,7 +186,7 @@ class LBSEngine:
         cap = self.config["CAP"]
         current = start_date
         while current <= end_date:
-            load_data = self.calculate_daily_load_pure(current, cache_entries, tasks)
+            load_data = self.calculate_daily_load(current, cache_entries, tasks)
             is_overflow = load_data["adjusted_load"] > cap
             # Update all entries for this date in the list
             for e in cache_entries:
@@ -194,11 +194,11 @@ class LBSEngine:
                     e.is_overflow = is_overflow
             current += timedelta(days=1)
 
-    def get_weekly_stats_pure(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
+    def get_weekly_stats(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
         daily_loads = []
         for i in range(7):
             day = start_date + timedelta(days=i)
-            daily_loads.append(self.calculate_daily_load_pure(day, cache_entries, tasks, include_completed=include_completed)["adjusted_load"])
+            daily_loads.append(self.calculate_daily_load(day, cache_entries, tasks, include_completed=include_completed)["adjusted_load"])
         
         avg = sum(daily_loads) / 7
         recovery_days = sum(1 for l in daily_loads if l < 4.0)
@@ -207,7 +207,7 @@ class LBSEngine:
             "recovery_rate": round((recovery_days / 7) * 100, 1)
         }
 
-    def get_trend_data_pure(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
+    def get_trend_data(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
         trends = []
         current_week_start = start_date
         
@@ -217,7 +217,7 @@ class LBSEngine:
             
             curr = current_week_start
             while curr <= week_end and curr <= end_date:
-                daily = self.calculate_daily_load_pure(curr, cache_entries, tasks, include_completed=include_completed)
+                daily = self.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed)
                 week_loads.append(daily["adjusted_load"])
                 curr += timedelta(days=1)
                 
@@ -232,7 +232,7 @@ class LBSEngine:
             
         return trends
 
-    def get_context_distribution_pure(self, start: date, end: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
+    def get_context_distribution(self, start: date, end: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
         distribution = {}
         task_map = {t.task_id: t for t in tasks}
         

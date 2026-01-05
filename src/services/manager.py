@@ -96,13 +96,13 @@ class LBSManager:
         tasks = self.repo.get_active_tasks(self.user_id) # Manager prefers Repo for entities
         
         today = date.today()
-        today_data = self.engine.calculate_daily_load_pure(today, cache_entries, tasks, include_completed=True)
-        weekly_stats = self.engine.get_weekly_stats_pure(start_date, cache_entries, tasks, include_completed=True)
+        today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, include_completed=True)
+        weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, include_completed=True)
         
         daily_breakdown = []
         for i in range(7):
             day = start_date + timedelta(days=i)
-            daily_breakdown.append(self.engine.calculate_daily_load_pure(day, cache_entries, tasks, include_completed=True))
+            daily_breakdown.append(self.engine.calculate_daily_load(day, cache_entries, tasks, include_completed=True))
             
         return {
             "today": today_data,
@@ -124,11 +124,11 @@ class LBSManager:
         cache_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, end_date)
         tasks = self.repo.get_active_tasks(self.user_id)
         
-        return self.engine.get_trend_data_pure(weeks, start_date, end_date, cache_entries, tasks, include_completed)
+        return self.engine.get_trend_data(weeks, start_date, end_date, cache_entries, tasks, include_completed)
 
     def get_context_distribution(self, start: date, end: date, include_completed: bool = True) -> List[Dict]:
         self.refresh_schedule(start, end)
         cache_entries = self.repo.get_daily_cache_in_range(self.user_id, start, end)
         tasks = self.repo.get_active_tasks(self.user_id)
         
-        return self.engine.get_context_distribution_pure(start, end, cache_entries, tasks, include_completed)
+        return self.engine.get_context_distribution(start, end, cache_entries, tasks, include_completed)

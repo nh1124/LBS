@@ -330,7 +330,7 @@ def calculate_load(
     manager.refresh_schedule(target_date, target_date)
     cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, target_date, target_date)
     tasks = manager.repo.get_active_tasks(identity.user_id)
-    return manager.engine.calculate_daily_load_pure(target_date, cache_entries, tasks, include_completed=include_completed)
+    return manager.engine.calculate_daily_load(target_date, cache_entries, tasks, include_completed=include_completed)
 
 @router.post("/expand")
 def expand_tasks(
@@ -360,7 +360,7 @@ def get_heatmap(
     data = []
     curr = start
     while curr <= end:
-        load = manager.engine.calculate_daily_load_pure(curr, cache_entries, tasks, include_completed=include_completed)
+        load = manager.engine.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed)
         data.append({
             "date": str(curr),
             "adjusted_load": load["adjusted_load"],
