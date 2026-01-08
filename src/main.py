@@ -75,6 +75,14 @@ app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(routes.router, prefix=settings.API_V1_STR)
 
+@app.get("/")
+def root():
+    return {"message": "LBS Microservice is running", "docs": "/docs"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 # Serve static files from the UI build directory
 # We assume the 'ui/dist' folder exists after the frontend build
 UI_DIST_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui", "dist")
@@ -95,15 +103,6 @@ if os.path.exists(UI_DIST_PATH):
             
         # Otherwise serve index.html for SPA routing
         return FileResponse(os.path.join(UI_DIST_PATH, "index.html"))
-
-@app.get("/")
-def root():
-    return {"message": "LBS Microservice is running", "docs": "/docs"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
 if __name__ == "__main__":
     import uvicorn
     
