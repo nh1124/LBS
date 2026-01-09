@@ -270,7 +270,12 @@ def calculate_load(
     manager.refresh_schedule(target_date, target_date)
     cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, target_date, target_date)
     tasks = manager.repo.get_active_tasks(identity.user_id)
-    return manager.engine.calculate_daily_load(target_date, cache_entries, tasks, include_completed=include_completed)
+    
+    # Fetch condition
+    cond = manager.repo.get_condition(identity.user_id, target_date)
+    fatigue = cond.cognitive_fatigue if cond else 0
+    
+    return manager.engine.calculate_daily_load(target_date, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)
 
 @router.post("/expand")
 def expand_tasks(
@@ -297,15 +302,23 @@ def get_heatmap(
     cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, start, end)
     tasks = manager.repo.get_active_tasks(identity.user_id)
     
+    # Fetch conditions for the range
+    conditions = manager.repo.get_conditions_in_range(identity.user_id, start, end)
+    
     data = []
     curr = start
     while curr <= end:
-        load = manager.engine.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed)
+        cond = conditions.get(curr)
+        fatigue = cond.cognitive_fatigue if cond else 0
+        
+        load = manager.engine.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)
         data.append({
             "date": str(curr),
             "adjusted_load": load["adjusted_load"],
             "level": load["level"],
-            "task_count": load["task_count"]
+            "task_count": load["task_count"],
+            "cap": load["cap"],
+            "cognitive_fatigue": fatigue
         })
         curr += timedelta(days=1)
     return data

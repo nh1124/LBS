@@ -204,23 +204,25 @@ class LBSEngine:
             ]
         }
 
-    def _calculate_overflow_flags(self, user_id: str, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task]) -> None:
+    def _calculate_overflow_flags(self, user_id: str, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], conditions: Dict[date, int] = None) -> None:
         cap = self.config["CAP"]
         current = start_date
         while current <= end_date:
-            load_data = self.calculate_daily_load(current, cache_entries, tasks)
-            is_overflow = load_data["adjusted_load"] > cap
+            fatigue = conditions.get(current, 0) if conditions else 0
+            load_data = self.calculate_daily_load(current, cache_entries, tasks, cognitive_fatigue=fatigue)
+            is_overflow = load_data["adjusted_load"] > load_data["cap"]
             # Update all entries for this date in the list
             for e in cache_entries:
                 if e.target_date == current:
                     e.is_overflow = is_overflow
             current += timedelta(days=1)
 
-    def get_weekly_stats(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
+    def get_weekly_stats(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True, conditions: Dict[date, int] = None) -> Dict:
         daily_loads = []
         for i in range(7):
             day = start_date + timedelta(days=i)
-            daily_loads.append(self.calculate_daily_load(day, cache_entries, tasks, include_completed=include_completed)["adjusted_load"])
+            fatigue = conditions.get(day, 0) if conditions else 0
+            daily_loads.append(self.calculate_daily_load(day, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)["adjusted_load"])
         
         avg = sum(daily_loads) / 7
         recovery_days = sum(1 for l in daily_loads if l < 4.0)
@@ -229,7 +231,7 @@ class LBSEngine:
             "recovery_rate": round((recovery_days / 7) * 100, 1)
         }
 
-    def get_trend_data(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
+    def get_trend_data(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True, conditions: Dict[date, int] = None) -> List[Dict]:
         trends = []
         current_week_start = start_date
         
@@ -239,7 +241,8 @@ class LBSEngine:
             
             curr = current_week_start
             while curr <= week_end and curr <= end_date:
-                daily = self.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed)
+                fatigue = conditions.get(curr, 0) if conditions else 0
+                daily = self.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)
                 week_loads.append(daily["adjusted_load"])
                 curr += timedelta(days=1)
                 

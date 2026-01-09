@@ -113,7 +113,7 @@ class ExceptionCreate(BaseModel):
     notes: Optional[str] = None
 
 class ConditionUpdate(BaseModel):
-    target_date: date
+    date: date
     cognitive_fatigue: int = Field(0, ge=0, le=5)
     physical_fatigue: Optional[int] = Field(0, ge=0, le=5)
     note: Optional[str] = None

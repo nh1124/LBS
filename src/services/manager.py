@@ -26,10 +26,17 @@ class LBSManager:
         tasks = self.repo.get_active_tasks(self.user_id)
         executions = self.repo.get_executions_in_range(self.user_id, start_date, end_date)
         exceptions = self.repo.get_exceptions_in_range(self.user_id, start_date, end_date)
+        conditions = self.repo.get_conditions_in_range(self.user_id, start_date, end_date)
+        
+        # Convert DailyCondition dict to Dict[date, int] for cognitive_fatigue
+        fatigue_map = {d: c.cognitive_fatigue for d, c in conditions.items()}
         
         cache_entries = self.engine.calculate_schedule(
             self.user_id, start_date, end_date, tasks, executions, exceptions
         )
+        
+        # Update overflow flags based on conditions
+        self.engine._calculate_overflow_flags(self.user_id, start_date, end_date, cache_entries, tasks, conditions=fatigue_map)
         
         from sqlalchemy.exc import IntegrityError
         try:
@@ -149,12 +156,11 @@ class LBSManager:
         # Load conditions for the week
         conditions = self.repo.get_conditions_in_range(self.user_id, start_date, start_date + timedelta(days=6))
         
-        today = date.today()
-        today_cond = conditions.get(today)
-        today_fatigue = today_cond.cognitive_fatigue if today_cond else 0
+        # Convert DailyCondition dict to Dict[date, int] for cognitive_fatigue
+        fatigue_map = {d: c.cognitive_fatigue for d, c in conditions.items()}
         
         today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, include_completed=True, cognitive_fatigue=today_fatigue)
-        weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, include_completed=True)
+        weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, include_completed=True, conditions=fatigue_map)
         
         daily_breakdown = []
         for i in range(7):
@@ -182,8 +188,10 @@ class LBSManager:
         
         cache_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, end_date)
         tasks = self.repo.get_active_tasks(self.user_id)
+        conditions = self.repo.get_conditions_in_range(self.user_id, start_date, end_date)
+        fatigue_map = {d: c.cognitive_fatigue for d, c in conditions.items()}
         
-        return self.engine.get_trend_data(weeks, start_date, end_date, cache_entries, tasks, include_completed)
+        return self.engine.get_trend_data(weeks, start_date, end_date, cache_entries, tasks, include_completed, conditions=fatigue_map)
 
     def list_tasks(self, context: Optional[str] = None, active: Optional[bool] = None) -> List[Task]:
         return self.repo.list_tasks(self.user_id, context, active)

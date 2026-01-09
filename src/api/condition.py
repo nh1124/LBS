@@ -11,7 +11,7 @@ from .schemas import ConditionUpdate, ConditionResponse
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Condition"])
 
-@router.post("/condition", response_model=ConditionResponse)
+@router.post("/conditions", response_model=ConditionResponse)
 def update_condition(
     cond_in: ConditionUpdate,
     identity: Identity = Depends(require_user_identity),
@@ -25,7 +25,7 @@ def update_condition(
     
     db_cond = DailyCondition(
         user_id=identity.user_id,
-        target_date=cond_in.target_date,
+        target_date=cond_in.date,
         cognitive_fatigue=cond_in.cognitive_fatigue,
         physical_fatigue=cond_in.physical_fatigue or 0,
         note=cond_in.note
@@ -37,7 +37,7 @@ def update_condition(
         db.refresh(db_cond)
         
         # Trigger cache refresh for the target date to apply adjustments
-        manager.refresh_schedule(cond_in.target_date, cond_in.target_date, force=True)
+        manager.refresh_schedule(cond_in.date, cond_in.date, force=True)
         
         return db_cond
     except Exception as e:
@@ -45,7 +45,7 @@ def update_condition(
         logger.error(f"Error updating condition: {e}")
         raise HTTPException(status_code=500, detail="Failed to update condition")
 
-@router.get("/condition/{target_date}", response_model=ConditionResponse)
+@router.get("/conditions/{target_date}", response_model=ConditionResponse)
 def get_condition(
     target_date: date,
     identity: Identity = Depends(require_user_identity),
@@ -61,6 +61,35 @@ def get_condition(
             cognitive_fatigue=0,
             physical_fatigue=0,
             note=None,
-            updated_at=date.today() # Placeholder
+            updated_at=datetime.utcnow() 
         )
     return cond
+
+@router.get("/conditions", response_model=List[ConditionResponse])
+def list_conditions(
+    start_date: date,
+    end_date: date,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    """List conditions in range"""
+    manager = LBSManager(db, identity.user_id)
+    conditions = manager.repo.get_conditions_in_range(identity.user_id, start_date, end_date)
+    return list(conditions.values())
+
+@router.delete("/conditions/{target_date}")
+def delete_condition(
+    target_date: date,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    """Delete (reset) condition for a specific date"""
+    manager = LBSManager(db, identity.user_id)
+    cond = manager.repo.get_condition(identity.user_id, target_date)
+    if cond:
+        db.delete(cond)
+        db.commit()
+    
+    # Refresh cache to remove fatigue logic application
+    manager.refresh_schedule(target_date, target_date, force=True)
+    return {"message": "Condition reset successfully"}
