@@ -112,6 +112,23 @@ class ExceptionCreate(BaseModel):
     override_load_value: Optional[float] = None
     notes: Optional[str] = None
 
+class ConditionUpdate(BaseModel):
+    target_date: date
+    cognitive_fatigue: int = Field(0, ge=0, le=5)
+    physical_fatigue: Optional[int] = Field(0, ge=0, le=5)
+    note: Optional[str] = None
+
+class ConditionResponse(BaseModel):
+    user_id: str
+    target_date: date
+    cognitive_fatigue: int
+    physical_fatigue: int
+    note: Optional[str]
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class DashboardResponse(BaseModel):
     today: dict
     weekly: dict

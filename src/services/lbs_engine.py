@@ -116,8 +116,15 @@ class LBSEngine:
         
         return False
 
-    def calculate_daily_load(self, target_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> Dict:
-        """Pure calculation of daily load from cache entries and task metadata"""
+    def calculate_daily_load(
+        self, 
+        target_date: date, 
+        cache_entries: List[LBSDailyCache], 
+        tasks: List[Task], 
+        include_completed: bool = True,
+        cognitive_fatigue: int = 0
+    ) -> Dict:
+        """Pure calculation of daily load from cache entries and task metadata with fatigue adjustment"""
         alpha = self.config["ALPHA"]
         beta = self.config["BETA"]
         switch_cost = self.config["SWITCH_COST"]
@@ -130,6 +137,8 @@ class LBSEngine:
             day_entries = [e for e in day_entries if e.status != TaskStatus.DONE]
             
         if not day_entries:
+            # Even if there are no tasks, return the effective capacity
+            effective_cap = cap * (1.0 - 0.1 * cognitive_fatigue)
             return {
                 "date": target_date, 
                 "base_load": 0.0,
@@ -139,7 +148,9 @@ class LBSEngine:
                 "count_penalty": 0.0,
                 "context_penalty": 0.0,
                 "level": "SAFE", 
-                "cap": cap, 
+                "cap": round(effective_cap, 2), 
+                "base_cap": cap,
+                "cognitive_fatigue": cognitive_fatigue,
                 "tasks": []
             }
             
@@ -153,23 +164,34 @@ class LBSEngine:
         
         count_penalty = alpha * (task_count ** beta)
         context_penalty = switch_cost * max(unique_contexts - 1, 0)
-        adjusted_load = base_load + count_penalty + context_penalty
+        
+        # Apply fatigue adjustments (B+C Model)
+        # Load: Effective = Base * (1.0 + 0.2 * Fc)
+        # Cap:  Effective = Base * (1.0 - 0.1 * Fc)
+        base_adjusted_load = base_load + count_penalty + context_penalty
+        fatigue_load_factor = 1.0 + (0.2 * cognitive_fatigue)
+        effective_load = base_adjusted_load * fatigue_load_factor
+        
+        effective_cap = cap * (1.0 - 0.1 * cognitive_fatigue)
         
         level = "SAFE"
-        if adjusted_load > cap: level = "CRITICAL"
-        elif adjusted_load >= 8.0: level = "DANGER"
-        elif adjusted_load >= 6.0: level = "WARNING"
+        if effective_load > effective_cap: level = "CRITICAL"
+        elif effective_load >= effective_cap * 0.8: level = "DANGER"
+        elif effective_load >= effective_cap * 0.6: level = "WARNING"
         
         return {
             "date": target_date,
             "base_load": round(base_load, 2),
             "task_count": task_count,
             "unique_contexts": unique_contexts,
-            "adjusted_load": round(adjusted_load, 2),
+            "adjusted_load": round(effective_load, 2), # Return effective load as adjusted_load for UI consistency
+            "raw_adjusted_load": round(base_adjusted_load, 2),
             "count_penalty": round(count_penalty, 2),
             "context_penalty": round(context_penalty, 2),
             "level": level,
-            "cap": cap,
+            "cap": round(effective_cap, 2),
+            "base_cap": cap,
+            "cognitive_fatigue": cognitive_fatigue,
             "tasks": [
                 {
                     "task_id": e.task_id, 

@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 import os
 import logging
 import sys
-from .api import routes, users, auth
+from .api import routes, users, auth, condition
 from .auth import get_password_hash, hash_api_key
 from .models.database import engine, Base, SessionLocal, User, APIKey
 from .config import settings
@@ -74,6 +74,7 @@ def startup_populate():
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(routes.router, prefix=settings.API_V1_STR)
+app.include_router(condition.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def root():

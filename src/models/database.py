@@ -100,6 +100,17 @@ class LBSDailyCache(Base):
         UniqueConstraint('user_id', 'task_id', 'target_date', name='_user_task_date_uc'),
     )
 
+class DailyCondition(Base):
+    """User-specific daily condition (fatigue, etc.)"""
+    __tablename__ = "daily_conditions"
+    
+    user_id = Column(String, ForeignKey("users.user_id"), primary_key=True)
+    target_date = Column(Date, primary_key=True)
+    cognitive_fatigue = Column(Integer, default=0) # 0-5
+    physical_fatigue = Column(Integer, default=0)  # 0-5
+    note = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # DB setup
 # Handle SQLite specific arguments
 engine_args = {}

@@ -52,6 +52,9 @@ class LBSManager:
         tasks = self.repo.get_active_tasks(self.user_id)
         task_map = {t.task_id: t for t in tasks}
         
+        # Load conditions in range
+        conditions = self.repo.get_conditions_in_range(self.user_id, start_date, end_date)
+        
         schedule_map = {}
         for entry in cache_entries:
             d = entry.target_date
@@ -59,8 +62,10 @@ class LBSManager:
                 schedule_map[d] = {"date": d, "total_load": 0.0, "tasks": []}
             
             task = task_map.get(entry.task_id)
-            if not task: continue # Should not happen if cache is fresh
+            if not task: continue 
             
+            # Note: entry.calculated_load is the base load per task.
+            # The fatigue adjustment is currently applied at the daily aggregation level in LBSEngine.
             schedule_map[d]["total_load"] += entry.calculated_load
             schedule_map[d]["tasks"].append({
                 "task_id": task.task_id,
@@ -70,7 +75,25 @@ class LBSManager:
                 "load": entry.calculated_load
             })
             
-        return sorted(schedule_map.values(), key=lambda x: x["date"])
+        # Post-process schedule to include fatigue-adjusted values
+        results = []
+        for d in sorted(schedule_map.keys()):
+            cond = conditions.get(d)
+            fatigue = cond.cognitive_fatigue if cond else 0
+            
+            # Use engine to get the full breakdown including fatigue
+            day_data = self.engine.calculate_daily_load(d, cache_entries, tasks, cognitive_fatigue=fatigue)
+            results.append({
+                "date": d,
+                "total_load": day_data["adjusted_load"],
+                "base_load": day_data["base_load"],
+                "cap": day_data["cap"],
+                "level": day_data["level"],
+                "cognitive_fatigue": fatigue,
+                "tasks": day_data["tasks"]
+            })
+            
+        return results
 
     def update_task_execution(self, task_id: str, target_date: date, status: TaskStatus) -> Dict:
         """Update task execution and refresh the specific day's cache (Race-condition safe)"""
@@ -123,14 +146,22 @@ class LBSManager:
         cache_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, start_date + timedelta(days=6))
         tasks = self.repo.get_active_tasks(self.user_id) # Manager prefers Repo for entities
         
+        # Load conditions for the week
+        conditions = self.repo.get_conditions_in_range(self.user_id, start_date, start_date + timedelta(days=6))
+        
         today = date.today()
-        today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, include_completed=True)
+        today_cond = conditions.get(today)
+        today_fatigue = today_cond.cognitive_fatigue if today_cond else 0
+        
+        today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, include_completed=True, cognitive_fatigue=today_fatigue)
         weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, include_completed=True)
         
         daily_breakdown = []
         for i in range(7):
             day = start_date + timedelta(days=i)
-            daily_breakdown.append(self.engine.calculate_daily_load(day, cache_entries, tasks, include_completed=True))
+            day_cond = conditions.get(day)
+            day_fatigue = day_cond.cognitive_fatigue if day_cond else 0
+            daily_breakdown.append(self.engine.calculate_daily_load(day, cache_entries, tasks, include_completed=True, cognitive_fatigue=day_fatigue))
             
         return {
             "today": today_data,

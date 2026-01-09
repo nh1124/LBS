@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
-from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskExecution, TaskStatus
+from ..models.database import Task, TaskException, LBSDailyCache, SystemConfig, TaskExecution, TaskStatus, DailyCondition
 from ..config import settings
 
 class TaskRepository:
@@ -125,3 +125,27 @@ class TaskRepository:
     # CRUD for Exception
     def create_exception(self, exception: TaskException):
         self.session.add(exception)
+
+    # CRUD for DailyCondition
+    def get_condition(self, user_id: str, target_date: date) -> Optional[DailyCondition]:
+        return self.session.query(DailyCondition).filter(
+            DailyCondition.user_id == user_id,
+            DailyCondition.target_date == target_date
+        ).first()
+
+    def get_conditions_in_range(self, user_id: str, start: date, end: date) -> Dict[date, DailyCondition]:
+        conditions = self.session.query(DailyCondition).filter(
+            DailyCondition.user_id == user_id,
+            DailyCondition.target_date >= start,
+            DailyCondition.target_date <= end
+        ).all()
+        return {c.target_date: c for c in conditions}
+
+    def upsert_condition(self, condition: DailyCondition):
+        existing = self.get_condition(condition.user_id, condition.target_date)
+        if existing:
+            existing.cognitive_fatigue = condition.cognitive_fatigue
+            existing.physical_fatigue = condition.physical_fatigue
+            existing.note = condition.note
+        else:
+            self.session.add(condition)
