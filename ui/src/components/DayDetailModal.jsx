@@ -75,6 +75,18 @@ const DayDetailModal = ({ isOpen, onClose, data, onToggleTaskStatus, isUpdating 
                                     <span>+ Context Switch Cost (Cost * (C-1))</span>
                                     <span className="font-mono">{data.context_penalty?.toFixed(2) || "0.00"}</span>
                                 </div>
+                                {data.cognitive_fatigue > 0 && (
+                                    <>
+                                        <div className="flex justify-between items-center text-slate-500 text-[10px] uppercase font-bold tracking-tight mt-1">
+                                            <span>= Raw Adjusted Subtotal</span>
+                                            <span className="font-mono">{data.raw_adjusted_load?.toFixed(2) || (data.base_load + data.count_penalty + data.context_penalty).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-blue-400 text-xs font-bold">
+                                            <span>× Fatigue Multiplier (Level {data.cognitive_fatigue})</span>
+                                            <span className="font-mono">{(1 + 0.2 * data.cognitive_fatigue).toFixed(1)}x</span>
+                                        </div>
+                                    </>
+                                )}
                                 <div className="h-px bg-white/5 my-1" />
                                 <div className="flex justify-between items-center text-lg font-bold">
                                     <span className="text-white">Final Adjusted Load</span>

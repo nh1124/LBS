@@ -9,13 +9,15 @@ import {
   Activity,
   History,
   User as UserIcon,
-  Key
+  Key,
+  Coffee
 } from 'lucide-react';
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import TaskManager from './components/TaskManager';
 import LBSCalendar from './components/LBSCalendar';
 import ExecutionManager from './components/ExecutionManager';
+import ConditionManager from './components/ConditionManager';
 import LinkAccount from './components/LinkAccount';
 import APIKeyManager from './components/APIKeyManager';
 
@@ -164,6 +166,12 @@ function App() {
             onClick={() => setActiveTab('calendar')}
           />
           <SidebarItem
+            icon={Coffee}
+            label="Condition"
+            active={activeTab === 'condition'}
+            onClick={() => setActiveTab('condition')}
+          />
+          <SidebarItem
             icon={Settings}
             label="Settings"
             active={activeTab === 'settings'}
@@ -193,6 +201,7 @@ function App() {
             {activeTab === 'tasks' && <TaskManager token={jwt} apiKey={apiKey} />}
             {activeTab === 'execution' && <ExecutionManager token={jwt} apiKey={apiKey} />}
             {activeTab === 'calendar' && <LBSCalendar token={jwt} apiKey={apiKey} />}
+            {activeTab === 'condition' && <ConditionManager token={jwt} />}
           </>
         )}
         {activeTab === 'settings' && (

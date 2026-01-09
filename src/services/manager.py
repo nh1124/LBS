@@ -159,6 +159,10 @@ class LBSManager:
         # Convert DailyCondition dict to Dict[date, int] for cognitive_fatigue
         fatigue_map = {d: c.cognitive_fatigue for d, c in conditions.items()}
         
+        today = date.today()
+        today_cond = conditions.get(today)
+        today_fatigue = today_cond.cognitive_fatigue if today_cond else 0
+        
         today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, include_completed=True, cognitive_fatigue=today_fatigue)
         weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, include_completed=True, conditions=fatigue_map)
         
