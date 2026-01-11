@@ -103,7 +103,6 @@ const DayDetailModal = ({ isOpen, onClose, data, onToggleTaskStatus, isUpdating 
                             {data.tasks.map((task, idx) => {
                                 const isDone = task.status === 'done';
                                 const isSkipped = task.status === 'skipped';
-                                const isInProgress = task.status === 'in_progress';
 
                                 return (
                                     <div key={idx} className={`glass-card p-4 flex justify-between items-center bg-white/5 transition-all border ${isDone ? 'border-emerald-500/20 bg-emerald-500/5' : isSkipped ? 'border-amber-500/20 bg-amber-500/5' : 'border-transparent'}`}>

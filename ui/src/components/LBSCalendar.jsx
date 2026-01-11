@@ -27,7 +27,8 @@ const LBSCalendar = ({ token, apiKey }) => {
             const start = new Date(year, month, 1).toISOString().split('T')[0];
             const end = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-            const resp = await api.get(`/heatmap?start=${start}&end=${end}&include_completed=${includeCompleted}`);
+            const statusParams = `status=todo&status=skipped${includeCompleted ? '&status=done' : ''}`;
+            const resp = await api.get(`/heatmap?start=${start}&end=${end}&${statusParams}`);
             const dataMap = {};
             resp.data.forEach(day => {
                 dataMap[day.date] = day;
@@ -52,7 +53,8 @@ const LBSCalendar = ({ token, apiKey }) => {
 
     const handleDayClick = async (dateStr) => {
         try {
-            const resp = await api.get(`/calculate/${dateStr}`);
+            const statusParams = `status=todo&status=skipped&status=done`;
+            const resp = await api.get(`/calculate/${dateStr}?${statusParams}`);
             setSelectedDayData(resp.data);
             setIsModalOpen(true);
         } catch (err) {
@@ -71,7 +73,8 @@ const LBSCalendar = ({ token, apiKey }) => {
             });
 
             // Refresh day details
-            const dayResp = await api.get(`/calculate/${dateStr}`);
+            const statusParams = `status=todo&status=skipped&status=done`;
+            const dayResp = await api.get(`/calculate/${dateStr}?${statusParams}`);
             setSelectedDayData(dayResp.data);
 
             // Refresh calendar heatmap

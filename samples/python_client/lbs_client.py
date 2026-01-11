@@ -9,7 +9,6 @@ class TaskStatus(str, enum.Enum):
     TODO = "todo"
     DONE = "done"
     SKIPPED = "skipped"
-    IN_PROGRESS = "in_progress"
 
 class LBSClient:
     """
@@ -248,35 +247,47 @@ class LBSClient:
             params["start_date"] = start_date.isoformat() if isinstance(start_date, date) else start_date
         return self._request("GET", "dashboard", params=params)
 
-    def get_heatmap(self, start: Union[date, str], end: Union[date, str], include_completed: bool = True) -> List[Dict]:
-        """Get daily load distribution."""
+    def get_heatmap(self, start: Union[date, str], end: Union[date, str], statuses: Optional[List[Union[str, TaskStatus]]] = None) -> List[Dict]:
+        """
+        Get daily load distribution.
+        
+        :param statuses: List of task statuses to include (e.g. ['todo', 'done']).
+        """
         params = {
             "start": start.isoformat() if isinstance(start, date) else start,
             "end": end.isoformat() if isinstance(end, date) else end,
-            "include_completed": str(include_completed).lower()
         }
+        if statuses:
+            params["status"] = [s.value if isinstance(s, TaskStatus) else s for s in statuses]
         return self._request("GET", "heatmap", params=params)
 
-    def get_trends(self, weeks: int = 12, start_date: Optional[Union[date, str]] = None, include_completed: bool = True) -> Dict:
-        """Get multi-week load trend predictions."""
-        params = {"weeks": weeks, "include_completed": str(include_completed).lower()}
+    def get_trends(self, weeks: int = 12, start_date: Optional[Union[date, str]] = None, statuses: Optional[List[Union[str, TaskStatus]]] = None) -> Dict:
+        """
+        Get multi-week load trend predictions.
+        """
+        params = {"weeks": weeks}
+        if statuses:
+            params["status"] = [s.value if isinstance(s, TaskStatus) else s for s in statuses]
         if start_date:
             params["start_date"] = start_date.isoformat() if isinstance(start_date, date) else start_date
         return self._request("GET", "trends", params=params)
 
-    def get_context_distribution(self, start: Union[date, str], end: Union[date, str], include_completed: bool = True) -> Dict:
+    def get_context_distribution(self, start: Union[date, str], end: Union[date, str], statuses: Optional[List[Union[str, TaskStatus]]] = None) -> Dict:
         """Get load distribution grouped by task context."""
         params = {
             "start": start.isoformat() if isinstance(start, date) else start,
             "end": end.isoformat() if isinstance(end, date) else end,
-            "include_completed": str(include_completed).lower()
         }
+        if statuses:
+            params["status"] = [s.value if isinstance(s, TaskStatus) else s for s in statuses]
         return self._request("GET", "context-distribution", params=params)
 
-    def calculate_load(self, target_date: Union[date, str], include_completed: bool = True) -> Dict:
+    def calculate_load(self, target_date: Union[date, str], statuses: Optional[List[Union[str, TaskStatus]]] = None) -> Dict:
         """Get raw load calculation for a specific date."""
         target = target_date.isoformat() if isinstance(target_date, date) else target_date
-        params = {"include_completed": str(include_completed).lower()}
+        params = {}
+        if statuses:
+            params["status"] = [s.value if isinstance(s, TaskStatus) else s for s in statuses]
         return self._request("GET", f"calculate/{target}", params=params)
 
     def get_schedule(self, start_date: Union[date, str], end_date: Union[date, str]) -> List[Dict]:

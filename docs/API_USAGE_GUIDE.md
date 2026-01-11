@@ -158,10 +158,10 @@ All endpoints are prefixed with `/api/lbs`.
 | :--- | :--- | :--- |
 | `/schedule` | GET | **Unified Schedule**. Returns grouped tasks/loads between `start_date` and `end_date`. |
 | `/dashboard` | GET | Summary of current load and next-day predictions |
-| `/heatmap` | GET | Daily load distribution. Parameter: `include_completed` (bool) |
-| `/trends` | GET | Multi-week load trend predictions. |
-| `/distribution/context` | GET | Load distribution grouped by task context. |
-| `/calculate/{target_date}` | GET | Raw load calculation for a date. |
+| `/heatmap` | GET | Daily load distribution. Query: `status` (List[TaskStatus]) |
+| `/trends` | GET | Multi-week load trend predictions. Query: `status` (List[TaskStatus]) |
+| `/context-distribution` | GET | Load distribution grouped by task context. Query: `status` (List[TaskStatus]) |
+| `/calculate/{target_date}` | GET | Raw load calculation for a date. Query: `status` (List[TaskStatus]) |
 | `/expand` | POST | Force trigger task expansion for a range |
 | `/exceptions` | POST | Register a task exception (e.g. absence, priority shift) |
 

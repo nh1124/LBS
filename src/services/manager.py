@@ -163,15 +163,18 @@ class LBSManager:
         today_cond = conditions.get(today)
         today_fatigue = today_cond.cognitive_fatigue if today_cond else 0
         
-        today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, include_completed=True, cognitive_fatigue=today_fatigue)
-        weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, include_completed=True, conditions=fatigue_map)
+        # Dashboard defaults to showing TODO + SKIPPED + DONE
+        filter_statuses = [TaskStatus.TODO, TaskStatus.SKIPPED, TaskStatus.DONE]
+        
+        today_data = self.engine.calculate_daily_load(today, cache_entries, tasks, filter_statuses=filter_statuses, cognitive_fatigue=today_fatigue)
+        weekly_stats = self.engine.get_weekly_stats(start_date, cache_entries, tasks, filter_statuses=filter_statuses, conditions=fatigue_map)
         
         daily_breakdown = []
         for i in range(7):
             day = start_date + timedelta(days=i)
             day_cond = conditions.get(day)
             day_fatigue = day_cond.cognitive_fatigue if day_cond else 0
-            daily_breakdown.append(self.engine.calculate_daily_load(day, cache_entries, tasks, include_completed=True, cognitive_fatigue=day_fatigue))
+            daily_breakdown.append(self.engine.calculate_daily_load(day, cache_entries, tasks, filter_statuses=filter_statuses, cognitive_fatigue=day_fatigue))
             
         return {
             "today": today_data,
@@ -180,7 +183,7 @@ class LBSManager:
             "config": self.engine.config
         }
 
-    def get_trends(self, weeks: int, start_date: Optional[date] = None, include_completed: bool = True) -> List[Dict]:
+    def get_trends(self, weeks: int, start_date: Optional[date] = None, status: List[TaskStatus] = [TaskStatus.TODO, TaskStatus.DONE]) -> List[Dict]:
         if not start_date:
             end_date = date.today()
             start_date = end_date - timedelta(weeks=weeks)
@@ -195,7 +198,14 @@ class LBSManager:
         conditions = self.repo.get_conditions_in_range(self.user_id, start_date, end_date)
         fatigue_map = {d: c.cognitive_fatigue for d, c in conditions.items()}
         
-        return self.engine.get_trend_data(weeks, start_date, end_date, cache_entries, tasks, include_completed, conditions=fatigue_map)
+        return self.engine.get_trend_data(weeks, start_date, end_date, cache_entries, tasks, filter_statuses=status, conditions=fatigue_map)
+
+    def get_context_distribution(self, start: date, end: date, status: List[TaskStatus] = [TaskStatus.TODO, TaskStatus.DONE]) -> List[Dict]:
+        self.refresh_schedule(start, end)
+        cache_entries = self.repo.get_daily_cache_in_range(self.user_id, start, end)
+        tasks = self.repo.get_active_tasks(self.user_id)
+        
+        return self.engine.get_context_distribution(start, end, cache_entries, tasks, filter_statuses=status)
 
     def list_tasks(self, context: Optional[str] = None, active: Optional[bool] = None) -> List[Task]:
         return self.repo.list_tasks(self.user_id, context, active)

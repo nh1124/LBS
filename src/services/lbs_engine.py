@@ -121,7 +121,7 @@ class LBSEngine:
         target_date: date, 
         cache_entries: List[LBSDailyCache], 
         tasks: List[Task], 
-        include_completed: bool = True,
+        filter_statuses: Optional[List[TaskStatus]] = None,
         cognitive_fatigue: int = 0
     ) -> Dict:
         """Pure calculation of daily load from cache entries and task metadata with fatigue adjustment"""
@@ -130,11 +130,11 @@ class LBSEngine:
         switch_cost = self.config["SWITCH_COST"]
         cap = self.config["CAP"]
         
+        if filter_statuses is None:
+            filter_statuses = [TaskStatus.TODO, TaskStatus.DONE]
+            
         # Filter entries for the target date and status
-        day_entries = [e for e in cache_entries if e.target_date == target_date and e.status != TaskStatus.SKIPPED]
-        
-        if not include_completed:
-            day_entries = [e for e in day_entries if e.status != TaskStatus.DONE]
+        day_entries = [e for e in cache_entries if e.target_date == target_date and e.status in filter_statuses]
             
         if not day_entries:
             # Even if there are no tasks, return the effective capacity
@@ -209,7 +209,10 @@ class LBSEngine:
         current = start_date
         while current <= end_date:
             fatigue = conditions.get(current, 0) if conditions else 0
-            load_data = self.calculate_daily_load(current, cache_entries, tasks, cognitive_fatigue=fatigue)
+            # Overflow calculation considers all scheduled tasks (including SKIPPED) 
+            # to reflect total planned pressure vs capacity.
+            statuses = [TaskStatus.TODO, TaskStatus.DONE, TaskStatus.SKIPPED]
+            load_data = self.calculate_daily_load(current, cache_entries, tasks, filter_statuses=statuses, cognitive_fatigue=fatigue)
             is_overflow = load_data["adjusted_load"] > load_data["cap"]
             # Update all entries for this date in the list
             for e in cache_entries:
@@ -217,12 +220,12 @@ class LBSEngine:
                     e.is_overflow = is_overflow
             current += timedelta(days=1)
 
-    def get_weekly_stats(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True, conditions: Dict[date, int] = None) -> Dict:
+    def get_weekly_stats(self, start_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], filter_statuses: Optional[List[TaskStatus]] = None, conditions: Dict[date, int] = None) -> Dict:
         daily_loads = []
         for i in range(7):
             day = start_date + timedelta(days=i)
             fatigue = conditions.get(day, 0) if conditions else 0
-            daily_loads.append(self.calculate_daily_load(day, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)["adjusted_load"])
+            daily_loads.append(self.calculate_daily_load(day, cache_entries, tasks, filter_statuses=filter_statuses, cognitive_fatigue=fatigue)["adjusted_load"])
         
         avg = sum(daily_loads) / 7
         recovery_days = sum(1 for l in daily_loads if l < 4.0)
@@ -231,7 +234,7 @@ class LBSEngine:
             "recovery_rate": round((recovery_days / 7) * 100, 1)
         }
 
-    def get_trend_data(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True, conditions: Dict[date, int] = None) -> List[Dict]:
+    def get_trend_data(self, weeks: int, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], filter_statuses: Optional[List[TaskStatus]] = None, conditions: Dict[date, int] = None) -> List[Dict]:
         trends = []
         current_week_start = start_date
         
@@ -242,7 +245,7 @@ class LBSEngine:
             curr = current_week_start
             while curr <= week_end and curr <= end_date:
                 fatigue = conditions.get(curr, 0) if conditions else 0
-                daily = self.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)
+                daily = self.calculate_daily_load(curr, cache_entries, tasks, filter_statuses=filter_statuses, cognitive_fatigue=fatigue)
                 week_loads.append(daily["adjusted_load"])
                 curr += timedelta(days=1)
                 
@@ -257,15 +260,16 @@ class LBSEngine:
             
         return trends
 
-    def get_context_distribution(self, start: date, end: date, cache_entries: List[LBSDailyCache], tasks: List[Task], include_completed: bool = True) -> List[Dict]:
+    def get_context_distribution(self, start: date, end: date, cache_entries: List[LBSDailyCache], tasks: List[Task], filter_statuses: Optional[List[TaskStatus]] = None) -> List[Dict]:
         distribution = {}
         task_map = {t.task_id: t for t in tasks}
         
+        if filter_statuses is None:
+            filter_statuses = [TaskStatus.TODO, TaskStatus.DONE]
+            
         curr = start
         while curr <= end:
-            day_entries = [e for e in cache_entries if e.target_date == curr and e.status != TaskStatus.SKIPPED]
-            if not include_completed:
-                day_entries = [e for e in day_entries if e.status != TaskStatus.DONE]
+            day_entries = [e for e in cache_entries if e.target_date == curr and e.status in filter_statuses]
             
             if day_entries:
                 date_str = str(curr)

@@ -37,9 +37,10 @@ const Dashboard = ({ token, apiKey }) => {
         const fetchData = async () => {
             try {
                 setLoading(true);
+                const statusParams = "status=todo&status=done&status=skipped";
                 const [dashResp, trendsResp] = await Promise.all([
-                    api.get('/dashboard'),
-                    api.get(`/trends?weeks=4&start_date=${trendStartDate}`)
+                    api.get(`/dashboard`),
+                    api.get(`/trends?weeks=4&start_date=${trendStartDate}&${statusParams}`)
                 ]);
                 setData({ ...dashResp.data, trends: trendsResp.data.trends });
                 setLoading(false);

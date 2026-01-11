@@ -31,7 +31,8 @@ const ExecutionManager = ({ token, apiKey }) => {
     const fetchDayData = async (dateStr) => {
         setLoading(true);
         try {
-            const resp = await api.get(`/calculate/${dateStr}`);
+            const statusParams = "status=todo&status=done&status=skipped";
+            const resp = await api.get(`/calculate/${dateStr}?${statusParams}`);
             setDayData(resp.data);
         } catch (err) {
             console.error("Error fetching execution data:", err);

@@ -261,7 +261,7 @@ def create_exception(
 @router.get("/calculate/{target_date}")
 def calculate_load(
     target_date: date,
-    include_completed: bool = Query(True),
+    status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -275,7 +275,7 @@ def calculate_load(
     cond = manager.repo.get_condition(identity.user_id, target_date)
     fatigue = cond.cognitive_fatigue if cond else 0
     
-    return manager.engine.calculate_daily_load(target_date, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)
+    return manager.engine.calculate_daily_load(target_date, cache_entries, tasks, filter_statuses=status, cognitive_fatigue=fatigue)
 
 @router.post("/expand")
 def expand_tasks(
@@ -292,7 +292,7 @@ def expand_tasks(
 def get_heatmap(
     start: date,
     end: date,
-    include_completed: bool = Query(True),
+    status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -311,7 +311,7 @@ def get_heatmap(
         cond = conditions.get(curr)
         fatigue = cond.cognitive_fatigue if cond else 0
         
-        load = manager.engine.calculate_daily_load(curr, cache_entries, tasks, include_completed=include_completed, cognitive_fatigue=fatigue)
+        load = manager.engine.calculate_daily_load(curr, cache_entries, tasks, filter_statuses=status, cognitive_fatigue=fatigue)
         data.append({
             "date": str(curr),
             "adjusted_load": load["adjusted_load"],
@@ -327,20 +327,22 @@ def get_heatmap(
 def get_trends(
     weeks: int = 12,
     start_date: Optional[date] = None,
-    include_completed: bool = Query(True),
+    status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    return {"trends": manager.get_trends(weeks, start_date, include_completed=include_completed)}
+    
+    return {"trends": manager.get_trends(weeks, start_date, status)}
 
 @router.get("/context-distribution")
 def get_context_distribution(
     start: date,
     end: date,
-    include_completed: bool = Query(True),
+    status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    return {"distribution": manager.get_context_distribution(start, end, include_completed=include_completed)}
+    
+    return {"distribution": manager.get_context_distribution(start, end, status)}

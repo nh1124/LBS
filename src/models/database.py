@@ -74,7 +74,7 @@ class TaskExecution(Base):
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
     task_id = Column(String, ForeignKey("tasks.task_id", ondelete="CASCADE"), nullable=False, index=True)
     target_date = Column(Date, nullable=False, index=True)
-    status = Column(SAEnum(TaskStatus, native_enum=False), default=TaskStatus.DONE) # e.g., "done", "skipped", "in_progress"
+    status = Column(SAEnum(TaskStatus, native_enum=False), default=TaskStatus.DONE) # e.g., "done", "skipped"
     progress = Column(Integer, default=100)
     actual_time = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

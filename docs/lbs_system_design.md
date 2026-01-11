@@ -198,15 +198,21 @@ For each date in [start_date, end_date]:
 $$
 \text{Adjusted} = \text{Base} + \alpha \times N^{\beta} + \text{SWITCH\_COST} \times \max(U - 1, 0)
 $$
+> [!IMPORTANT]
+> **Status Filtering**: The engine no longer hardcodes which tasks are excluded (e.g., Skipped). The caller (Manager or API Client) provides a `filter_statuses` list. Only tasks matching these statuses are included in the calculation.
+>
+> Default: `[TODO, DONE]`
+
 | Variable | Meaning |
 |----------|---------|
-| **Base** | Sum of all task load scores for the day |
-| **N** | Number of tasks |
-| **U** | Number of unique contexts (projects) |
+| **Base** | Sum of `calculated_load` for tasks matching `filter_statuses` |
+| **N** | Number of tasks matching `filter_statuses` |
+| **U** | Number of unique contexts for tasks matching `filter_statuses` |
 | **α (ALPHA)** | Task count penalty coefficient (default 0.1) |
 | **β (BETA)** | Task count penalty exponent (default 1.2) |
 | **SWITCH_COST** | Context switch penalty (default 0.5) |
-**Example Calculation:**
+
+**Example Calculation (Filter: [TODO, DONE]):**
 - 4 tasks with loads [2.0, 3.0, 1.5, 2.5] → Base = 9.0
 - N = 4, α = 0.1, β = 1.2 → Count penalty = 0.1 × 4^1.2 ≈ 0.53
 - U = 2 contexts → Switch penalty = 0.5 × 1 = 0.5
