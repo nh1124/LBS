@@ -198,7 +198,9 @@ class LBSEngine:
                     "task_name": task_map[e.task_id].task_name if e.task_id in task_map else "Unknown", 
                     "context": task_map[e.task_id].context if e.task_id in task_map else "unknown", 
                     "load": e.calculated_load,
-                    "status": e.status
+                    "status": e.status,
+                    "start_time": task_map[e.task_id].start_time if e.task_id in task_map else None,
+                    "end_time": task_map[e.task_id].end_time if e.task_id in task_map else None
                 }
                 for e in day_entries
             ]

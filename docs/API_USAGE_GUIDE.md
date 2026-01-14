@@ -110,6 +110,8 @@ def create_lbs_task(title, load, due_date):
         "title": title,
         "load": load,
         "due_date": due_date,
+        "start_time": "09:00",
+        "end_time": "10:00",
         "context": "automation"
     }
     response = requests.post(f"{BASE_URL}/tasks", headers=headers, json=payload)

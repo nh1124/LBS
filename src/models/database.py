@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, create_engine, Enum as SAEnum, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, Boolean, Date, Time, DateTime, Text, ForeignKey, create_engine, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
 import enum
@@ -48,6 +48,8 @@ class Task(Base):
     weekday_mon1 = Column(Integer, nullable=True)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     notes = Column(Text)
     external_sync_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

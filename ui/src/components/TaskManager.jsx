@@ -91,7 +91,7 @@ const TaskManager = ({ token, apiKey }) => {
     const [formData, setFormData] = useState({
         task_name: '', context: 'work', base_load_score: 2.0, rule_type: 'WEEKLY',
         mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false,
-        start_date: '', end_date: '', notes: ''
+        start_date: '', end_date: '', start_time: '', end_time: '', notes: ''
     });
 
     const api = axios.create({
@@ -211,7 +211,7 @@ const TaskManager = ({ token, apiKey }) => {
             "task_name", "context", "base_load_score", "rule_type", "active", "status",
             "mon", "tue", "wed", "thu", "fri", "sat", "sun",
             "interval_days", "anchor_date", "month_day", "nth_in_month", "weekday_mon1",
-            "start_date", "end_date", "due_date", "notes"
+            "start_date", "end_date", "start_time", "end_time", "due_date", "notes"
         ];
         const csvContent = [headers.join(','), ...tasksToExport.map(t => headers.map(h => {
             const val = t[h];
@@ -487,6 +487,25 @@ const TaskManager = ({ token, apiKey }) => {
                                         type="date" className="w-full"
                                         value={formData.end_date || ''}
                                         onChange={e => setFormData({ ...formData, end_date: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 col-span-2 pt-4 border-t border-white/5">
+                                <div>
+                                    <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Start Time (Optional)</label>
+                                    <input
+                                        type="time" className="w-full" step="1"
+                                        value={formData.start_time || ''}
+                                        onChange={e => setFormData({ ...formData, start_time: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">End Time (Optional)</label>
+                                    <input
+                                        type="time" className="w-full" step="1"
+                                        value={formData.end_time || ''}
+                                        onChange={e => setFormData({ ...formData, end_time: e.target.value })}
                                     />
                                 </div>
                             </div>

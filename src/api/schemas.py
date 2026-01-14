@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import date, datetime
+from datetime import date, datetime, time
 from ..models.database import TaskStatus
 
 class UserCreate(BaseModel):
@@ -36,6 +36,8 @@ class TaskBase(BaseModel):
     weekday_mon1: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
     notes: Optional[str] = None
     external_sync_id: Optional[str] = None
 
@@ -63,6 +65,8 @@ class TaskUpdate(BaseModel):
     weekday_mon1: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
     notes: Optional[str] = None
     external_sync_id: Optional[str] = None
 
@@ -93,6 +97,8 @@ class ScheduleTask(BaseModel):
     context: str
     status: TaskStatus
     load: float = Field(..., description="Calculated load (including exceptions)")
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
     
     class Config: from_attributes = True
 

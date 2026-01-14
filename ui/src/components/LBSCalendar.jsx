@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Info, LayoutList, CalendarRange } from 'lucide-react';
 import DayDetailModal from './DayDetailModal';
+import LBSTimeline from './LBSTimeline';
 
 const LBSCalendar = ({ token, apiKey }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -10,6 +11,8 @@ const LBSCalendar = ({ token, apiKey }) => {
     const [selectedDayData, setSelectedDayData] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [includeCompleted, setIncludeCompleted] = useState(true);
+    const [viewMode, setViewMode] = useState('MONTH'); // 'MONTH' or 'WEEK'
+    const [weekData, setWeekData] = useState([]);
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
@@ -41,15 +44,64 @@ const LBSCalendar = ({ token, apiKey }) => {
         }
     };
 
+    const fetchWeekData = async () => {
+        setLoading(true);
+        try {
+            // Calculate start of week (Sunday)
+            const d = new Date(currentDate);
+            const day = d.getDay();
+            const diff = d.getDate() - day; // adjust when day is sunday
+            const start = new Date(d);
+            start.setDate(diff);
+            const end = new Date(start);
+            end.setDate(start.getDate() + 6);
+
+            const sStr = start.toISOString().split('T')[0];
+            const eStr = end.toISOString().split('T')[0];
+
+            const resp = await api.get(`/schedule?start_date=${sStr}&end_date=${eStr}`);
+            setWeekData(resp.data);
+        } catch (err) {
+            console.error("Error fetching week data:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        if (token || apiKey) fetchMonthData();
-    }, [currentDate, token, apiKey, includeCompleted]);
+        if (token || apiKey) {
+            if (viewMode === 'MONTH') {
+                fetchMonthData();
+            } else {
+                fetchWeekData();
+            }
+        }
+    }, [currentDate, token, apiKey, includeCompleted, viewMode]);
 
     const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
     const firstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
 
-    const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    const handleNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    const handlePrev = () => {
+        const newDate = new Date(currentDate);
+        if (viewMode === 'MONTH') {
+            newDate.setMonth(newDate.getMonth() - 1);
+            newDate.setDate(1);
+        } else {
+            newDate.setDate(newDate.getDate() - 7);
+        }
+        setCurrentDate(newDate);
+    };
+
+    const handleNext = () => {
+        const newDate = new Date(currentDate);
+        if (viewMode === 'MONTH') {
+            newDate.setMonth(newDate.getMonth() + 1);
+            newDate.setDate(1);
+        } else {
+            newDate.setDate(newDate.getDate() + 7);
+        }
+        setCurrentDate(newDate);
+    };
 
     const handleDayClick = async (dateStr) => {
         try {
@@ -151,34 +203,64 @@ const LBSCalendar = ({ token, apiKey }) => {
     };
 
     return (
-        <div className="flex flex-col gap-8">
-            <header className="flex justify-between items-center">
+        <div className="flex flex-col gap-8 h-full">
+            <header className="flex justify-between items-start">
                 <div>
                     <h2 className="text-3xl font-bold mb-1">LBS Calendar</h2>
                     <p className="text-slate-400">Monthly schedule and predictive load mapping.</p>
                 </div>
 
-                <div className="flex items-center gap-4 bg-white/5 p-2 rounded-xl border border-white/5">
-                    <button
-                        onClick={() => setIncludeCompleted(!includeCompleted)}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${includeCompleted ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-white/5 text-slate-500 border border-transparent'}`}
-                    >
-                        {includeCompleted ? 'Showing Completed' : 'Hiding Completed'}
-                    </button>
-                    <div className="w-px h-6 bg-white/5" />
-                    <div className="flex items-center gap-4">
-                        <button onClick={handlePrevMonth} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
-                        <div className="min-w-[140px] text-center font-bold text-lg">
-                            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-4 bg-white/5 p-2 rounded-xl border border-white/5">
+                        <button
+                            onClick={() => setIncludeCompleted(!includeCompleted)}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${includeCompleted ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-white/5 text-slate-500 border border-transparent'}`}
+                        >
+                            {includeCompleted ? 'Showing Completed' : 'Hiding Completed'}
+                        </button>
+                        <div className="w-px h-6 bg-white/5" />
+                        <div className="flex items-center gap-4">
+                            <button onClick={handlePrev} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
+                            <div className="min-w-[170px] text-center font-bold text-lg">
+                                {viewMode === 'MONTH'
+                                    ? currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                                    : `Week of ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                }
+                            </div>
+                            <button onClick={handleNext} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronRight size={20} /></button>
                         </div>
-                        <button onClick={handleNextMonth} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all"><ChevronRight size={20} /></button>
+                    </div>
+
+                    <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 h-8 items-center">
+                        <button
+                            onClick={() => setViewMode('MONTH')}
+                            className={`px-3 h-full rounded-lg flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'MONTH' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <CalendarIcon size={12} /> Month
+                        </button>
+                        <button
+                            onClick={() => setViewMode('WEEK')}
+                            className={`px-3 h-full rounded-lg flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'WEEK' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <LayoutList size={12} /> Week
+                        </button>
                     </div>
                 </div>
             </header>
 
-            <div className={`grid grid-cols-7 gap-3 ${loading ? 'opacity-50 grayscale' : ''}`}>
-                {renderCalendar()}
-            </div>
+            {viewMode === 'MONTH' ? (
+                <div className={`grid grid-cols-7 gap-3 ${loading ? 'opacity-50 grayscale' : ''}`}>
+                    {renderCalendar()}
+                </div>
+            ) : (
+                <div className="flex-grow flex flex-col min-h-0 h-[calc(100vh-200px)]">
+                    <LBSTimeline
+                        startDate={currentDate}
+                        weekData={weekData}
+                        onTaskClick={(task, dateStr) => handleDayClick(dateStr)}
+                    />
+                </div>
+            )}
 
             {
                 loading && (
