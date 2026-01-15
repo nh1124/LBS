@@ -74,6 +74,7 @@ class LBSEngine:
             load = exception.override_load_value
         elif exception and exception.exception_type == "FORCE_DO" and exception.override_load_value is not None:
              load = exception.override_load_value
+        # RESCHEDULE type: doesn't change load, only allows time override (handled at output level)
             
         execution = executions.get((task.task_id, day_date))
 

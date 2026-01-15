@@ -357,10 +357,11 @@ const ExecutionManager = ({ token, apiKey }) => {
                                             <option value="SKIP">SKIP - Skip this occurrence</option>
                                             <option value="OVERRIDE_LOAD">OVERRIDE_LOAD - Change load value</option>
                                             <option value="FORCE_DO">FORCE_DO - Force task on this date</option>
+                                            <option value="RESCHEDULE">RESCHEDULE - Change time only</option>
                                         </select>
                                     </div>
 
-                                    {exceptionForm.exception_type !== 'SKIP' && (
+                                    {(exceptionForm.exception_type === 'OVERRIDE_LOAD' || exceptionForm.exception_type === 'FORCE_DO') && (
                                         <div>
                                             <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Override Load</label>
                                             <input
@@ -450,8 +451,8 @@ const ExecutionManager = ({ token, apiKey }) => {
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`text-xs px-2 py-0.5 rounded font-bold uppercase ${exc.exception_type === 'SKIP' ? 'bg-amber-500/20 text-amber-400' :
-                                                            exc.exception_type === 'FORCE_DO' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                                'bg-blue-500/20 text-blue-400'
+                                                        exc.exception_type === 'FORCE_DO' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                            'bg-blue-500/20 text-blue-400'
                                                         }`}>
                                                         {exc.exception_type}
                                                     </span>

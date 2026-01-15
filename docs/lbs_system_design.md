@@ -101,6 +101,8 @@ erDiagram
         date target_date
         string exception_type
         float override_load_value
+        time start_time
+        time end_time
     }
     
     LBS_DAILY_CACHE {
@@ -154,6 +156,7 @@ Stores individual outcomes for task instances (done, skipped, in-progress).
 | `SKIP` | Cancel task for that date (load = 0) |
 | `OVERRIDE_LOAD` | Replace load score with custom value |
 | `FORCE_DO` | Add task on non-scheduled date |
+| `RESCHEDULE` | Change start/end time without affecting load or occurrence |
 ### 4.4 User-Specific Configuration
 | Key | Default | Description |
 |-----|---------|-------------|
