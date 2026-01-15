@@ -149,23 +149,32 @@ All endpoints are prefixed with `/api/lbs`.
 | `/tasks/{id}` | GET | Get master task definition. Query: `target_date` (optional) |
 | `/tasks/{id}` | PUT | Update a master task definition. |
 | `/tasks/{id}` | DELETE | Delete a task |
-| `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
-| `/tasks/bulk-update-active` | POST | Update active status (archive/unarchive) |
+| `/tasks/{id}/resolved` | GET | **Get task with exception overrides** for a date. Query: `target_date` (required) |
 | `/tasks/{id}/complete`| POST | Record execution for a date. Payload: `{target_date: "YYYY-MM-DD", status: Enum}` |
 | `/tasks/{id}/history` | GET | Retrieve full execution history for a task. |
+| `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
+| `/tasks/bulk-update-active` | POST | Update active status (archive/unarchive) |
 | `/tasks/upload-csv` | POST | Bulk import tasks via CSV. |
+
+### Exceptions (`/exceptions`)
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/exceptions` | GET | List exceptions. Query: `task_id`, `start_date`, `end_date` |
+| `/exceptions` | POST | Create an exception. Types: `SKIP`, `OVERRIDE_LOAD`, `FORCE_DO`, `RESCHEDULE` |
+| `/exceptions/{id}` | GET | Get a specific exception by ID |
+| `/exceptions/{id}` | PUT | Update an exception |
+| `/exceptions/{id}` | DELETE | Delete an exception |
 
 ### Daily Schedule & Analysis
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/schedule` | GET | **Unified Schedule**. Returns grouped tasks/loads between `start_date` and `end_date`. |
+| `/schedule` | GET | **Unified Schedule**. Returns tasks with exception overrides applied. Query: `start_date`, `end_date` |
 | `/dashboard` | GET | Summary of current load and next-day predictions |
 | `/heatmap` | GET | Daily load distribution. Query: `status` (List[TaskStatus]) |
 | `/trends` | GET | Multi-week load trend predictions. Query: `status` (List[TaskStatus]) |
 | `/context-distribution` | GET | Load distribution grouped by task context. Query: `status` (List[TaskStatus]) |
 | `/calculate/{target_date}` | GET | Raw load calculation for a date. Query: `status` (List[TaskStatus]) |
 | `/expand` | POST | Force trigger task expansion for a range |
-| `/exceptions` | POST | Register a task exception (e.g. absence, priority shift) |
 
 ### System
 | Endpoint | Method | Description |

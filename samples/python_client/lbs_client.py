@@ -178,6 +178,19 @@ class LBSClient:
             params["target_date"] = target_date.isoformat() if isinstance(target_date, date) else target_date
         return self._request("GET", f"tasks/{task_id}", params=params)
 
+    def get_resolved_task(self, task_id: str, target_date: Union[date, str]) -> Dict:
+        """
+        Get task with exception overrides applied for a specific date.
+        
+        Returns the task with resolved times, load, and exception details
+        reflecting any exceptions that apply to that date.
+        
+        :param task_id: The task ID.
+        :param target_date: The date to resolve the task for.
+        """
+        date_str = target_date.isoformat() if isinstance(target_date, date) else target_date
+        return self._request("GET", f"tasks/{task_id}/resolved", params={"target_date": date_str})
+
     def create_task(self, task_data: Dict) -> Dict:
         """Create a new LBS task."""
         return self._request("POST", "tasks", json=task_data)

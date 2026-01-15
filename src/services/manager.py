@@ -84,12 +84,16 @@ class LBSManager:
             
         # Post-process schedule to include fatigue-adjusted values
         results = []
+        
+        # Fetch exceptions for the range
+        exceptions = self.repo.get_exceptions_in_range(self.user_id, start_date, end_date)
+        
         for d in sorted(schedule_map.keys()):
             cond = conditions.get(d)
             fatigue = cond.cognitive_fatigue if cond else 0
             
-            # Use engine to get the full breakdown including fatigue
-            day_data = self.engine.calculate_daily_load(d, cache_entries, tasks, cognitive_fatigue=fatigue)
+            # Use engine to get the full breakdown including fatigue and exception overrides
+            day_data = self.engine.calculate_daily_load(d, cache_entries, tasks, cognitive_fatigue=fatigue, exceptions=exceptions)
             results.append({
                 "date": d,
                 "total_load": day_data["adjusted_load"],
@@ -318,3 +322,49 @@ class LBSManager:
         self.session.commit()
         self.refresh_schedule(target_date, target_date, force=True)
         return True
+
+    def get_resolved_task(self, task_id: str, target_date: date) -> Optional[Dict]:
+        """
+        Get a task resolved with any exception overrides for a specific date.
+        Returns task data with exception-adjusted values if an exception exists.
+        """
+        task = self.repo.get_task(self.user_id, task_id)
+        if not task:
+            return None
+        
+        # Get exception for this task on the target date
+        exception = self.repo.get_exception_for_task_date(self.user_id, task_id, target_date)
+        
+        # Get cached entry for load
+        cache_entries = self.repo.get_daily_cache_in_range(self.user_id, target_date, target_date)
+        cache_entry = next((e for e in cache_entries if e.task_id == task_id), None)
+        
+        # Build resolved task
+        resolved = {
+            "task_id": task.task_id,
+            "task_name": task.task_name,
+            "context": task.context,
+            "base_load_score": task.base_load_score,
+            "active": task.active,
+            "rule_type": task.rule_type,
+            "is_locked": task.is_locked,
+            "target_date": target_date,
+            # Times - apply exception overrides if present
+            "start_time": exception.start_time if exception and exception.start_time else task.start_time,
+            "end_time": exception.end_time if exception and exception.end_time else task.end_time,
+            # Load - apply exception override if present
+            "load": cache_entry.calculated_load if cache_entry else task.base_load_score,
+            "status": cache_entry.status if cache_entry else None,
+            # Exception info
+            "has_exception": exception is not None,
+            "exception": {
+                "id": exception.id,
+                "exception_type": exception.exception_type,
+                "override_load_value": exception.override_load_value,
+                "start_time": exception.start_time,
+                "end_time": exception.end_time,
+                "notes": exception.notes
+            } if exception else None
+        }
+        
+        return resolved

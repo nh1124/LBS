@@ -115,6 +115,23 @@ def get_task_history(
         
     return manager.get_task_history(task_id, start_date, end_date)
 
+@router.get("/tasks/{task_id}/resolved")
+def get_resolved_task(
+    task_id: str,
+    target_date: date,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a task with any exception overrides applied for a specific date.
+    Returns the task with resolved times, load, and exception details.
+    """
+    manager = LBSManager(db, identity.user_id)
+    resolved = manager.get_resolved_task(task_id, target_date)
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return resolved
+
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 def update_task(
     task_id: str,

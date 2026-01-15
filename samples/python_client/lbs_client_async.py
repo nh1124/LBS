@@ -154,6 +154,14 @@ class AsyncLBSClient:
             params["target_date"] = target_date.isoformat() if isinstance(target_date, date) else target_date
         return await self._request("GET", f"tasks/{task_id}", params=params)
 
+    async def get_resolved_task(self, task_id: str, target_date: Union[date, str]) -> Dict:
+        """
+        Get task with exception overrides applied for a specific date.
+        Returns the task with resolved times, load, and exception details.
+        """
+        date_str = target_date.isoformat() if isinstance(target_date, date) else target_date
+        return await self._request("GET", f"tasks/{task_id}/resolved", params={"target_date": date_str})
+
     async def create_task(self, task_data: Dict) -> Dict:
         """Create a new task."""
         return await self._request("POST", "tasks", json=task_data)

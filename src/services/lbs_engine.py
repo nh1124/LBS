@@ -123,7 +123,8 @@ class LBSEngine:
         cache_entries: List[LBSDailyCache], 
         tasks: List[Task], 
         filter_statuses: Optional[List[TaskStatus]] = None,
-        cognitive_fatigue: int = 0
+        cognitive_fatigue: int = 0,
+        exceptions: Dict = None
     ) -> Dict:
         """Pure calculation of daily load from cache entries and task metadata with fatigue adjustment"""
         alpha = self.config["ALPHA"]
@@ -193,19 +194,46 @@ class LBSEngine:
             "cap": round(effective_cap, 2),
             "base_cap": cap,
             "cognitive_fatigue": cognitive_fatigue,
-            "tasks": [
-                {
-                    "task_id": e.task_id, 
-                    "task_name": task_map[e.task_id].task_name if e.task_id in task_map else "Unknown", 
-                    "context": task_map[e.task_id].context if e.task_id in task_map else "unknown", 
-                    "load": e.calculated_load,
-                    "status": e.status,
-                    "start_time": task_map[e.task_id].start_time if e.task_id in task_map else None,
-                    "end_time": task_map[e.task_id].end_time if e.task_id in task_map else None
-                }
-                for e in day_entries
-            ]
+            "tasks": self._build_task_list(day_entries, task_map, target_date, exceptions)
         }
+
+    def _build_task_list(self, day_entries, task_map, target_date, exceptions=None):
+        """Build task list with exception time overrides applied"""
+        result = []
+        for e in day_entries:
+            task = task_map.get(e.task_id)
+            if not task:
+                continue
+            
+            # Get base times from task
+            start_time = task.start_time
+            end_time = task.end_time
+            has_exception = False
+            exception_type = None
+            
+            # Apply exception time overrides if present
+            if exceptions:
+                exception = exceptions.get((e.task_id, target_date))
+                if exception:
+                    has_exception = True
+                    exception_type = exception.exception_type
+                    if exception.start_time:
+                        start_time = exception.start_time
+                    if exception.end_time:
+                        end_time = exception.end_time
+            
+            result.append({
+                "task_id": e.task_id,
+                "task_name": task.task_name,
+                "context": task.context,
+                "load": e.calculated_load,
+                "status": e.status,
+                "start_time": start_time,
+                "end_time": end_time,
+                "has_exception": has_exception,
+                "exception_type": exception_type
+            })
+        return result
 
     def _calculate_overflow_flags(self, user_id: str, start_date: date, end_date: date, cache_entries: List[LBSDailyCache], tasks: List[Task], conditions: Dict[date, int] = None) -> None:
         cap = self.config["CAP"]

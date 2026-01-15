@@ -102,6 +102,8 @@ class ScheduleTask(BaseModel):
     load: float = Field(..., description="Calculated load (including exceptions)")
     start_time: Optional[time] = None
     end_time: Optional[time] = None
+    has_exception: bool = False
+    exception_type: Optional[str] = None
     
     class Config: from_attributes = True
 
