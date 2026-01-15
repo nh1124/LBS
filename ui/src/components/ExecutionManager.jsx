@@ -11,7 +11,13 @@ import {
     ChevronLeft,
     ChevronRight,
     RefreshCw,
-    Search
+    Search,
+    Settings2,
+    X,
+    Clock,
+    AlertTriangle,
+    Plus,
+    Trash2
 } from 'lucide-react';
 
 const ExecutionManager = ({ token, apiKey }) => {
@@ -19,6 +25,19 @@ const ExecutionManager = ({ token, apiKey }) => {
     const [dayData, setDayData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Exception modal state
+    const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState(null);
+    const [taskExceptions, setTaskExceptions] = useState([]);
+    const [exceptionForm, setExceptionForm] = useState({
+        exception_type: 'SKIP',
+        override_load_value: '',
+        start_time: '',
+        end_time: '',
+        notes: ''
+    });
+    const [editingExceptionId, setEditingExceptionId] = useState(null);
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
@@ -42,6 +61,16 @@ const ExecutionManager = ({ token, apiKey }) => {
         }
     };
 
+    const fetchTaskExceptions = async (taskId) => {
+        try {
+            const resp = await api.get('/exceptions', { params: { task_id: taskId } });
+            setTaskExceptions(resp.data);
+        } catch (err) {
+            console.error("Error fetching exceptions:", err);
+            setTaskExceptions([]);
+        }
+    };
+
     useEffect(() => {
         if (token || apiKey) fetchDayData(selectedDate);
     }, [selectedDate, token, apiKey]);
@@ -59,6 +88,90 @@ const ExecutionManager = ({ token, apiKey }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const openExceptionModal = async (task) => {
+        setSelectedTask(task);
+        setEditingExceptionId(null);
+        setExceptionForm({
+            exception_type: 'SKIP',
+            override_load_value: '',
+            start_time: '',
+            end_time: '',
+            notes: ''
+        });
+        await fetchTaskExceptions(task.task_id);
+        setIsExceptionModalOpen(true);
+    };
+
+    const closeExceptionModal = () => {
+        setIsExceptionModalOpen(false);
+        setSelectedTask(null);
+        setTaskExceptions([]);
+        setEditingExceptionId(null);
+    };
+
+    const handleCreateException = async () => {
+        if (!selectedTask) return;
+        try {
+            const payload = {
+                task_id: selectedTask.task_id,
+                target_date: selectedDate,
+                exception_type: exceptionForm.exception_type,
+                override_load_value: exceptionForm.override_load_value ? parseFloat(exceptionForm.override_load_value) : null,
+                start_time: exceptionForm.start_time || null,
+                end_time: exceptionForm.end_time || null,
+                notes: exceptionForm.notes || null
+            };
+            await api.post('/exceptions', payload);
+            await fetchTaskExceptions(selectedTask.task_id);
+            await fetchDayData(selectedDate);
+            setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '' });
+        } catch (err) {
+            alert("Error creating exception: " + (err.response?.data?.detail || err.message));
+        }
+    };
+
+    const handleUpdateException = async () => {
+        if (!editingExceptionId) return;
+        try {
+            const payload = {
+                exception_type: exceptionForm.exception_type,
+                override_load_value: exceptionForm.override_load_value ? parseFloat(exceptionForm.override_load_value) : null,
+                start_time: exceptionForm.start_time || null,
+                end_time: exceptionForm.end_time || null,
+                notes: exceptionForm.notes || null
+            };
+            await api.put(`/exceptions/${editingExceptionId}`, payload);
+            await fetchTaskExceptions(selectedTask.task_id);
+            await fetchDayData(selectedDate);
+            setEditingExceptionId(null);
+            setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '' });
+        } catch (err) {
+            alert("Error updating exception: " + (err.response?.data?.detail || err.message));
+        }
+    };
+
+    const handleDeleteException = async (exceptionId) => {
+        if (!confirm("Delete this exception?")) return;
+        try {
+            await api.delete(`/exceptions/${exceptionId}`);
+            await fetchTaskExceptions(selectedTask.task_id);
+            await fetchDayData(selectedDate);
+        } catch (err) {
+            alert("Error deleting exception: " + (err.response?.data?.detail || err.message));
+        }
+    };
+
+    const startEditException = (exc) => {
+        setEditingExceptionId(exc.id);
+        setExceptionForm({
+            exception_type: exc.exception_type,
+            override_load_value: exc.override_load_value || '',
+            start_time: exc.start_time || '',
+            end_time: exc.end_time || '',
+            notes: exc.notes || ''
+        });
     };
 
     const changeDate = (offset) => {
@@ -182,6 +295,13 @@ const ExecutionManager = ({ token, apiKey }) => {
 
                                     <div className="flex items-center gap-3">
                                         <button
+                                            onClick={() => openExceptionModal(task)}
+                                            className="w-12 h-12 rounded-xl flex items-center justify-center transition-all bg-white/5 text-slate-500 hover:text-purple-400 hover:bg-purple-500/10"
+                                            title="Manage Exceptions"
+                                        >
+                                            <Settings2 size={20} />
+                                        </button>
+                                        <button
                                             onClick={() => handleToggleStatus(task.task_id, isDone ? 'todo' : 'done')}
                                             disabled={loading}
                                             className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isDone ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-white/5 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10'}`}
@@ -204,6 +324,171 @@ const ExecutionManager = ({ token, apiKey }) => {
                     )}
                 </div>
             </div>
+
+            {/* Exception Modal */}
+            {isExceptionModalOpen && selectedTask && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-bold">Exception Manager</h3>
+                                <p className="text-slate-400 text-sm">{selectedTask.task_name} • {selectedDate}</p>
+                            </div>
+                            <button onClick={closeExceptionModal} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 flex flex-col gap-6">
+                            {/* Exception Form */}
+                            <div className="flex flex-col gap-4">
+                                <h4 className="text-sm font-bold uppercase tracking-widest text-slate-500">
+                                    {editingExceptionId ? 'Edit Exception' : 'Create New Exception'}
+                                </h4>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2">
+                                        <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Exception Type</label>
+                                        <select
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
+                                            value={exceptionForm.exception_type}
+                                            onChange={(e) => setExceptionForm({ ...exceptionForm, exception_type: e.target.value })}
+                                        >
+                                            <option value="SKIP">SKIP - Skip this occurrence</option>
+                                            <option value="OVERRIDE_LOAD">OVERRIDE_LOAD - Change load value</option>
+                                            <option value="FORCE_DO">FORCE_DO - Force task on this date</option>
+                                        </select>
+                                    </div>
+
+                                    {exceptionForm.exception_type !== 'SKIP' && (
+                                        <div>
+                                            <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Override Load</label>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
+                                                placeholder="e.g. 3.5"
+                                                value={exceptionForm.override_load_value}
+                                                onChange={(e) => setExceptionForm({ ...exceptionForm, override_load_value: e.target.value })}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Start Time</label>
+                                        <input
+                                            type="time"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
+                                            value={exceptionForm.start_time}
+                                            onChange={(e) => setExceptionForm({ ...exceptionForm, start_time: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">End Time</label>
+                                        <input
+                                            type="time"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
+                                            value={exceptionForm.end_time}
+                                            onChange={(e) => setExceptionForm({ ...exceptionForm, end_time: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className="col-span-2">
+                                        <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Notes</label>
+                                        <textarea
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm resize-none"
+                                            rows={2}
+                                            placeholder="Optional notes..."
+                                            value={exceptionForm.notes}
+                                            onChange={(e) => setExceptionForm({ ...exceptionForm, notes: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    {editingExceptionId ? (
+                                        <>
+                                            <button
+                                                onClick={handleUpdateException}
+                                                className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                            >
+                                                Update Exception
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingExceptionId(null);
+                                                    setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '' });
+                                                }}
+                                                className="px-6 bg-white/5 hover:bg-white/10 py-3 rounded-xl font-bold transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={handleCreateException}
+                                            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Plus size={18} /> Create Exception
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Existing Exceptions */}
+                            <div className="flex flex-col gap-3">
+                                <h4 className="text-sm font-bold uppercase tracking-widest text-slate-500">
+                                    Existing Exceptions ({taskExceptions.length})
+                                </h4>
+
+                                {taskExceptions.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500 text-sm">No exceptions for this task.</div>
+                                ) : (
+                                    taskExceptions.map((exc) => (
+                                        <div key={exc.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex justify-between items-start">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xs px-2 py-0.5 rounded font-bold uppercase ${exc.exception_type === 'SKIP' ? 'bg-amber-500/20 text-amber-400' :
+                                                            exc.exception_type === 'FORCE_DO' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                                'bg-blue-500/20 text-blue-400'
+                                                        }`}>
+                                                        {exc.exception_type}
+                                                    </span>
+                                                    <span className="text-sm text-slate-400">{exc.target_date}</span>
+                                                </div>
+                                                {exc.override_load_value && (
+                                                    <span className="text-xs text-slate-500">Load: {exc.override_load_value}</span>
+                                                )}
+                                                {(exc.start_time || exc.end_time) && (
+                                                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                                                        <Clock size={10} /> {exc.start_time || '--:--'} - {exc.end_time || '--:--'}
+                                                    </span>
+                                                )}
+                                                {exc.notes && <span className="text-xs text-slate-400 italic">{exc.notes}</span>}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => startEditException(exc)}
+                                                    className="p-2 hover:bg-white/10 rounded-lg transition-all text-slate-400 hover:text-white"
+                                                >
+                                                    <Settings2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteException(exc.id)}
+                                                    className="p-2 hover:bg-red-500/20 rounded-lg transition-all text-slate-400 hover:text-red-400"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

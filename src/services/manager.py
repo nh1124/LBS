@@ -3,7 +3,7 @@ from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
 from .repository import TaskRepository
 from .lbs_engine import LBSEngine
-from ..models.database import Task, TaskExecution, TaskStatus
+from ..models.database import Task, TaskExecution, TaskStatus, TaskException
 
 class LBSManager:
     def __init__(self, session: Session, user_id: str):
@@ -277,7 +277,7 @@ class LBSManager:
     def get_task_history(self, task_id: str, start_date: date, end_date: date) -> List[TaskExecution]:
         return self.repo.get_task_history(task_id, start_date, end_date)
 
-    def create_exception(self, exception_data: Dict[str, Any]) -> None:
+    def create_exception(self, exception_data: Dict[str, Any]) -> TaskException:
         from ..models.database import TaskException
         new_exc = TaskException(
             **exception_data,
@@ -285,4 +285,36 @@ class LBSManager:
         )
         self.repo.create_exception(new_exc)
         self.session.commit()
+        self.session.refresh(new_exc)
         self.refresh_schedule(new_exc.target_date, new_exc.target_date, force=True)
+        return new_exc
+
+    def get_exception(self, exception_id: int):
+        return self.repo.get_exception(self.user_id, exception_id)
+
+    def list_exceptions(self, task_id: Optional[str] = None, start_date: Optional[date] = None, end_date: Optional[date] = None):
+        return self.repo.list_exceptions(self.user_id, task_id, start_date, end_date)
+
+    def update_exception(self, exception_id: int, update_data: Dict[str, Any]):
+        exc = self.repo.get_exception(self.user_id, exception_id)
+        if not exc:
+            return None
+        
+        for field, value in update_data.items():
+            setattr(exc, field, value)
+        
+        self.session.commit()
+        self.session.refresh(exc)
+        self.refresh_schedule(exc.target_date, exc.target_date, force=True)
+        return exc
+
+    def delete_exception(self, exception_id: int) -> bool:
+        exc = self.repo.get_exception(self.user_id, exception_id)
+        if not exc:
+            return False
+        
+        target_date = exc.target_date
+        self.repo.delete_exception(exc)
+        self.session.commit()
+        self.refresh_schedule(target_date, target_date, force=True)
+        return True

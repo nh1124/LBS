@@ -52,6 +52,7 @@ class Task(Base):
     end_time = Column(Time, nullable=True)
     notes = Column(Text)
     external_sync_id = Column(String, nullable=True)
+    is_locked = Column(Boolean, default=False)  # Marker for external systems to prevent modifications
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -63,8 +64,10 @@ class TaskException(Base):
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
     task_id = Column(String, ForeignKey("tasks.task_id", ondelete="CASCADE"), nullable=False)
     target_date = Column(Date, nullable=False)
-    exception_type = Column(String, nullable=False) # SKIP, OVERRIDE_LOAD, FORCE_DO
+    exception_type = Column(String, nullable=False)  # SKIP, OVERRIDE_LOAD, FORCE_DO
     override_load_value = Column(Float, nullable=True)
+    start_time = Column(Time, nullable=True)  # Override start time for this date
+    end_time = Column(Time, nullable=True)    # Override end time for this date
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -126,6 +126,32 @@ class TaskRepository:
     def create_exception(self, exception: TaskException):
         self.session.add(exception)
 
+    def get_exception(self, user_id: str, exception_id: int) -> Optional[TaskException]:
+        return self.session.query(TaskException).filter(
+            TaskException.id == exception_id,
+            TaskException.user_id == user_id
+        ).first()
+
+    def get_exception_for_task_date(self, user_id: str, task_id: str, target_date: date) -> Optional[TaskException]:
+        return self.session.query(TaskException).filter(
+            TaskException.user_id == user_id,
+            TaskException.task_id == task_id,
+            TaskException.target_date == target_date
+        ).first()
+
+    def list_exceptions(self, user_id: str, task_id: Optional[str] = None, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[TaskException]:
+        query = self.session.query(TaskException).filter(TaskException.user_id == user_id)
+        if task_id:
+            query = query.filter(TaskException.task_id == task_id)
+        if start_date:
+            query = query.filter(TaskException.target_date >= start_date)
+        if end_date:
+            query = query.filter(TaskException.target_date <= end_date)
+        return query.order_by(TaskException.target_date.asc()).all()
+
+    def delete_exception(self, exception: TaskException):
+        self.session.delete(exception)
+
     # CRUD for DailyCondition
     def get_condition(self, user_id: str, target_date: date) -> Optional[DailyCondition]:
         return self.session.query(DailyCondition).filter(

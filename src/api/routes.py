@@ -22,7 +22,9 @@ from .schemas import (
     TaskExecutionRequest,
     TaskExecutionResponse,
     DailySchedule,
-    ExceptionCreate
+    ExceptionCreate,
+    ExceptionUpdate,
+    ExceptionResponse
 )
 
 router = APIRouter(tags=["LBS"])
@@ -255,8 +257,55 @@ def create_exception(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    manager.create_exception(exc.model_dump())
-    return {"message": "Exception created successfully"}
+    created = manager.create_exception(exc.model_dump())
+    return created
+
+@router.get("/exceptions")
+def list_exceptions(
+    task_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    manager = LBSManager(db, identity.user_id)
+    return manager.list_exceptions(task_id, start_date, end_date)
+
+@router.get("/exceptions/{exception_id}")
+def get_exception(
+    exception_id: int,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    manager = LBSManager(db, identity.user_id)
+    exc = manager.get_exception(exception_id)
+    if not exc:
+        raise HTTPException(status_code=404, detail="Exception not found")
+    return exc
+
+@router.put("/exceptions/{exception_id}")
+def update_exception(
+    exception_id: int,
+    exc_update: ExceptionUpdate,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    manager = LBSManager(db, identity.user_id)
+    updated = manager.update_exception(exception_id, exc_update.model_dump(exclude_unset=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Exception not found")
+    return updated
+
+@router.delete("/exceptions/{exception_id}")
+def delete_exception(
+    exception_id: int,
+    identity: Identity = Depends(require_user_identity),
+    db: Session = Depends(get_db)
+):
+    manager = LBSManager(db, identity.user_id)
+    if not manager.delete_exception(exception_id):
+        raise HTTPException(status_code=404, detail="Exception not found")
+    return {"message": "Exception deleted successfully"}
 
 @router.get("/calculate/{target_date}")
 def calculate_load(

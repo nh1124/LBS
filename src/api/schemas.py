@@ -40,6 +40,7 @@ class TaskBase(BaseModel):
     end_time: Optional[time] = None
     notes: Optional[str] = None
     external_sync_id: Optional[str] = None
+    is_locked: Optional[bool] = False
 
 class TaskCreate(TaskBase):
     pass
@@ -69,6 +70,7 @@ class TaskUpdate(BaseModel):
     end_time: Optional[time] = None
     notes: Optional[str] = None
     external_sync_id: Optional[str] = None
+    is_locked: Optional[bool] = None
 
 class TaskBulkDelete(BaseModel):
     task_ids: List[str]
@@ -89,6 +91,7 @@ class TaskExecutionResponse(BaseModel):
 class TaskResponse(TaskBase):
     task_id: str
     active: bool
+    is_locked: bool = False
     class Config: from_attributes = True
 
 class ScheduleTask(BaseModel):
@@ -114,9 +117,31 @@ class TaskDetail(TaskResponse):
 class ExceptionCreate(BaseModel):
     task_id: str
     target_date: date
+    exception_type: str  # SKIP, OVERRIDE_LOAD, FORCE_DO
+    override_load_value: Optional[float] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    notes: Optional[str] = None
+
+class ExceptionUpdate(BaseModel):
+    exception_type: Optional[str] = None
+    override_load_value: Optional[float] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    notes: Optional[str] = None
+
+class ExceptionResponse(BaseModel):
+    id: int
+    task_id: str
+    target_date: date
     exception_type: str
     override_load_value: Optional[float] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
     notes: Optional[str] = None
+    created_at: datetime
+    
+    class Config: from_attributes = True
 
 class ConditionUpdate(BaseModel):
     date: date

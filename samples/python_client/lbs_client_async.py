@@ -271,9 +271,92 @@ class AsyncLBSClient:
         }
         return await self._request("POST", "expand", params=params)
 
-    async def create_exception(self, exception_data: Dict) -> Dict:
-        """Register a task exception."""
-        return await self._request("POST", "exceptions", json=exception_data)
+    async def create_exception(
+        self, 
+        task_id: str, 
+        target_date: Union[date, str], 
+        exception_type: str,
+        override_load_value: Optional[float] = None,
+        start_time: Optional[Union[time, str]] = None,
+        end_time: Optional[Union[time, str]] = None,
+        notes: Optional[str] = None
+    ) -> Dict:
+        """
+        Create a task exception for a specific date.
+        
+        :param task_id: ID of the task to create exception for.
+        :param target_date: Date for the exception (YYYY-MM-DD).
+        :param exception_type: Type of exception ('SKIP', 'OVERRIDE_LOAD', 'FORCE_DO').
+        :param override_load_value: Optional load value override.
+        :param start_time: Optional start time override (HH:MM:SS).
+        :param end_time: Optional end time override (HH:MM:SS).
+        :param notes: Optional notes.
+        """
+        payload = {
+            "task_id": task_id,
+            "target_date": target_date.isoformat() if isinstance(target_date, date) else target_date,
+            "exception_type": exception_type
+        }
+        if override_load_value is not None:
+            payload["override_load_value"] = override_load_value
+        if start_time:
+            payload["start_time"] = start_time.isoformat() if isinstance(start_time, time) else start_time
+        if end_time:
+            payload["end_time"] = end_time.isoformat() if isinstance(end_time, time) else end_time
+        if notes:
+            payload["notes"] = notes
+        return await self._request("POST", "exceptions", json=payload)
+
+    async def list_exceptions(
+        self, 
+        task_id: Optional[str] = None, 
+        start_date: Optional[Union[date, str]] = None, 
+        end_date: Optional[Union[date, str]] = None
+    ) -> List[Dict]:
+        """
+        List task exceptions with optional filters.
+        """
+        params = {}
+        if task_id:
+            params["task_id"] = task_id
+        if start_date:
+            params["start_date"] = start_date.isoformat() if isinstance(start_date, date) else start_date
+        if end_date:
+            params["end_date"] = end_date.isoformat() if isinstance(end_date, date) else end_date
+        return await self._request("GET", "exceptions", params=params)
+
+    async def get_exception(self, exception_id: int) -> Dict:
+        """Get a specific exception by ID."""
+        return await self._request("GET", f"exceptions/{exception_id}")
+
+    async def update_exception(
+        self, 
+        exception_id: int,
+        exception_type: Optional[str] = None,
+        override_load_value: Optional[float] = None,
+        start_time: Optional[Union[time, str]] = None,
+        end_time: Optional[Union[time, str]] = None,
+        notes: Optional[str] = None
+    ) -> Dict:
+        """
+        Update an existing exception.
+        """
+        payload = {}
+        if exception_type is not None:
+            payload["exception_type"] = exception_type
+        if override_load_value is not None:
+            payload["override_load_value"] = override_load_value
+        if start_time is not None:
+            payload["start_time"] = start_time.isoformat() if isinstance(start_time, time) else start_time
+        if end_time is not None:
+            payload["end_time"] = end_time.isoformat() if isinstance(end_time, time) else end_time
+        if notes is not None:
+            payload["notes"] = notes
+        return await self._request("PUT", f"exceptions/{exception_id}", json=payload)
+
+    async def delete_exception(self, exception_id: int) -> Dict:
+        """Delete an exception by ID."""
+        return await self._request("DELETE", f"exceptions/{exception_id}")
 
     async def update_condition(self, target_date: Union[date, str], cognitive_fatigue: int, note: Optional[str] = None) -> Dict:
         """Update daily condition."""
