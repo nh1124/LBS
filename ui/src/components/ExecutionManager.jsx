@@ -375,25 +375,29 @@ const ExecutionManager = ({ token, apiKey }) => {
                                         </div>
                                     )}
 
-                                    <div>
-                                        <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Start Time</label>
-                                        <input
-                                            type="time"
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
-                                            value={exceptionForm.start_time}
-                                            onChange={(e) => setExceptionForm({ ...exceptionForm, start_time: e.target.value })}
-                                        />
-                                    </div>
+                                    {exceptionForm.exception_type !== 'SKIP' && (
+                                        <>
+                                            <div>
+                                                <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Start Time</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
+                                                    value={exceptionForm.start_time}
+                                                    onChange={(e) => setExceptionForm({ ...exceptionForm, start_time: e.target.value })}
+                                                />
+                                            </div>
 
-                                    <div>
-                                        <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">End Time</label>
-                                        <input
-                                            type="time"
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
-                                            value={exceptionForm.end_time}
-                                            onChange={(e) => setExceptionForm({ ...exceptionForm, end_time: e.target.value })}
-                                        />
-                                    </div>
+                                            <div>
+                                                <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">End Time</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
+                                                    value={exceptionForm.end_time}
+                                                    onChange={(e) => setExceptionForm({ ...exceptionForm, end_time: e.target.value })}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
 
                                     <div className="col-span-2">
                                         <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Notes</label>
