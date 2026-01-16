@@ -238,6 +238,9 @@ class LBSManager:
         if not task:
             return None
         
+        if task.is_locked and not update_data.get("is_locked", True) == False:
+            raise ValueError(f"Task '{task.task_name}' is locked and cannot be modified")
+
         for field, value in update_data.items():
             setattr(task, field, value)
         
@@ -256,12 +259,26 @@ class LBSManager:
         if not task:
             return False
         
+        if task.is_locked:
+            raise ValueError(f"Task '{task.task_name}' is locked and cannot be deleted")
+        
         self.repo.delete_task(task)
         self.session.commit()
         self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
         return True
 
     def bulk_delete_tasks(self, task_ids: List[str]) -> int:
+        # Check if any tasks are locked
+        locked_tasks = self.session.query(Task).filter(
+            Task.task_id.in_(task_ids),
+            Task.user_id == self.user_id,
+            Task.is_locked == True
+        ).all()
+        
+        if locked_tasks:
+            names = ", ".join([t.task_name for t in locked_tasks])
+            raise ValueError(f"Cannot delete: some tasks are locked ({names})")
+
         count = self.repo.bulk_delete_tasks(self.user_id, task_ids)
         if count > 0:
             self.session.commit()
@@ -354,7 +371,7 @@ class LBSManager:
             "base_load_score": task.base_load_score,
             "active": task.active,
             "rule_type": task.rule_type,
-            "is_locked": task.is_locked,
+            "is_locked": task.is_locked or (exception.is_locked if exception else False),
             "target_date": target_date,
             # Times - apply exception overrides if present
             "start_time": exception.start_time if exception and exception.start_time else task.start_time,
@@ -370,7 +387,8 @@ class LBSManager:
                 "override_load_value": exception.override_load_value,
                 "start_time": exception.start_time,
                 "end_time": exception.end_time,
-                "notes": exception.notes
+                "notes": exception.notes,
+                "is_locked": exception.is_locked
             } if exception else None
         }
         

@@ -37,9 +37,9 @@ class LBSEngine:
                 if task.due_date and start_date <= task.due_date <= end_date:
                     self._process_day(user_id, task, task.due_date, exceptions, cache_entries, executions)
                 
-                # Check for FORCE_DO exceptions on other dates
+                # Check for FORCE_DO or MANUAL_LOCK exceptions on other dates
                 for (t_id, d), exc in exceptions.items():
-                    if t_id == task.task_id and exc.exception_type == "FORCE_DO":
+                    if t_id == task.task_id and exc.exception_type in ["FORCE_DO", "MANUAL_LOCK"]:
                         if d != task.due_date: # Don't double process
                             self._process_day(user_id, task, d, exceptions, cache_entries, executions)
                 continue
@@ -54,8 +54,8 @@ class LBSEngine:
                     if not (exception and exception.exception_type == "SKIP"):
                         self._process_day(user_id, task, current_date, exceptions, cache_entries, executions)
                 else:
-                    # No normal occurrence, check for FORCE_DO
-                    if exception and exception.exception_type == "FORCE_DO":
+                    # No normal occurrence, check for FORCE_DO or MANUAL_LOCK
+                    if exception and exception.exception_type in ["FORCE_DO", "MANUAL_LOCK"]:
                         self._process_day(user_id, task, current_date, exceptions, cache_entries, executions)
                 
                 current_date += timedelta(days=1)
@@ -70,8 +70,9 @@ class LBSEngine:
         exception = exceptions.get((task.task_id, day_date))
         
         load = task.base_load_score
-        if exception and exception.exception_type == "OVERRIDE_LOAD":
-            load = exception.override_load_value
+        if exception and exception.exception_type in ["OVERRIDE_LOAD", "MANUAL_LOCK"]:
+            if exception.override_load_value is not None:
+                load = exception.override_load_value
         elif exception and exception.exception_type == "FORCE_DO" and exception.override_load_value is not None:
              load = exception.override_load_value
         # RESCHEDULE type: doesn't change load, only allows time override (handled at output level)

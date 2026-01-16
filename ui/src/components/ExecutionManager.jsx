@@ -357,16 +357,24 @@ const ExecutionManager = ({ token, apiKey }) => {
                                         <select
                                             className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm"
                                             value={exceptionForm.exception_type}
-                                            onChange={(e) => setExceptionForm({ ...exceptionForm, exception_type: e.target.value })}
+                                            onChange={(e) => {
+                                                const newType = e.target.value;
+                                                setExceptionForm({
+                                                    ...exceptionForm,
+                                                    exception_type: newType,
+                                                    is_locked: newType === 'MANUAL_LOCK' ? true : exceptionForm.is_locked
+                                                });
+                                            }}
                                         >
                                             <option value="SKIP">SKIP - Skip this occurrence</option>
                                             <option value="OVERRIDE_LOAD">OVERRIDE_LOAD - Change load value</option>
                                             <option value="FORCE_DO">FORCE_DO - Force task on this date</option>
                                             <option value="RESCHEDULE">RESCHEDULE - Change time only</option>
+                                            <option value="MANUAL_LOCK">MANUAL_LOCK - Set values and lock</option>
                                         </select>
                                     </div>
 
-                                    {(exceptionForm.exception_type === 'OVERRIDE_LOAD' || exceptionForm.exception_type === 'FORCE_DO') && (
+                                    {(exceptionForm.exception_type === 'OVERRIDE_LOAD' || exceptionForm.exception_type === 'FORCE_DO' || exceptionForm.exception_type === 'MANUAL_LOCK') && (
                                         <div>
                                             <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Override Load</label>
                                             <input

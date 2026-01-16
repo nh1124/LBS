@@ -141,11 +141,13 @@ def update_task(
 ):
     manager = LBSManager(db, identity.user_id)
     update_data = task_in.model_dump(exclude_unset=True)
-    updated_task = manager.update_task(task_id, update_data)
-    if not updated_task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    return updated_task
+    try:
+        updated_task = manager.update_task(task_id, update_data)
+        if not updated_task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return updated_task
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.post("/tasks/upload-csv")
 def upload_tasks_csv(
@@ -217,9 +219,12 @@ def delete_task(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    if not manager.delete_task(task_id):
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Task deleted successfully"}
+    try:
+        if not manager.delete_task(task_id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {"message": "Task deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.post("/tasks/bulk-delete")
 def bulk_delete_tasks(
@@ -228,12 +233,13 @@ def bulk_delete_tasks(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    count = manager.bulk_delete_tasks(bulk_in.task_ids)
-    
-    if count == 0:
-        return {"message": "No tasks found to delete"}
-    
-    return {"message": f"Successfully deleted {count} tasks"}
+    try:
+        count = manager.bulk_delete_tasks(bulk_in.task_ids)
+        if count == 0:
+            return {"message": "No tasks found to delete"}
+        return {"message": f"Successfully deleted {count} tasks"}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.post("/tasks/bulk-update-active")
 def bulk_update_active(

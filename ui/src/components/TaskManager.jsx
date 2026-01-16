@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
     Plus, Edit2, Trash2, Calendar, CheckCircle2, XCircle,
     Menu, Filter, Search, Tag, Clock, ChevronDown, Upload, Download,
-    Archive, RotateCcw, CheckCircle, Circle
+    Archive, RotateCcw, CheckCircle, Circle, Lock, Unlock
 } from 'lucide-react';
 
 const TaskCard = ({ task, onEdit, onDelete, onToggleStatus, onToggleActive, isSelected, onSelect }) => {
@@ -50,6 +50,7 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleStatus, onToggleActive, isSe
                 <div className="flex gap-4 text-xs text-slate-500">
                     <div className="flex items-center gap-1"><Clock size={12} /> {getRuleLabel(task.rule_type)}</div>
                     {task.due_date && <div className="flex items-center gap-1"><Calendar size={12} /> {task.due_date}</div>}
+                    {task.is_locked && <div className="flex items-center gap-1 text-amber-500/80 font-bold"><Lock size={12} /> Locked</div>}
                 </div>
             </div>
 
@@ -61,8 +62,10 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleStatus, onToggleActive, isSe
                 >
                     {isArchived ? <RotateCcw size={16} /> : <Archive size={16} />}
                 </button>
-                <button onClick={() => onEdit(task)} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white" title="Edit Task"><Edit2 size={16} /></button>
-                <button onClick={() => onDelete(task.task_id)} className="p-2 hover:bg-red-500/10 rounded-lg text-slate-400 hover:text-red-400" title="Delete Task"><Trash2 size={16} /></button>
+                <button onClick={() => onEdit(task)} className={`p-2 hover:bg-white/5 rounded-lg transition-all ${task.is_locked ? 'text-amber-500' : 'text-slate-400 hover:text-white'}`} title={task.is_locked ? "Unlock & Edit" : "Edit Task"}>
+                    {task.is_locked ? <Lock size={16} /> : <Edit2 size={16} />}
+                </button>
+                <button onClick={() => onDelete(task.task_id)} className="p-2 hover:bg-red-500/10 rounded-lg text-slate-400 hover:text-red-400" title="Delete Task" disabled={task.is_locked}><Trash2 size={16} /></button>
             </div>
         </div>
     );
@@ -91,7 +94,7 @@ const TaskManager = ({ token, apiKey }) => {
     const [formData, setFormData] = useState({
         task_name: '', context: 'work', base_load_score: 2.0, rule_type: 'WEEKLY',
         mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false,
-        start_date: '', end_date: '', start_time: '', end_time: '', notes: ''
+        start_date: '', end_date: '', start_time: '', end_time: '', notes: '', is_locked: false
     });
 
     const api = axios.create({
@@ -508,6 +511,22 @@ const TaskManager = ({ token, apiKey }) => {
                                         onChange={e => setFormData({ ...formData, end_time: e.target.value })}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="col-span-2 p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-center justify-between">
+                                <div className="flex items-baseline gap-2">
+                                    <h4 className="font-bold text-sm text-amber-500 flex items-center gap-2">
+                                        <Lock size={14} /> Lock Task Configuration
+                                    </h4>
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest text-wrap">Prevent unintended modifications or deletions</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, is_locked: !formData.is_locked })}
+                                    className={`w-12 h-6 rounded-full transition-all relative flex-shrink-0 ${formData.is_locked ? 'bg-amber-500' : 'bg-white/10'}`}
+                                >
+                                    <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all ${formData.is_locked ? 'left-6' : 'left-0.5'}`} />
+                                </button>
                             </div>
 
                             <div className="col-span-2">
