@@ -1,4 +1,5 @@
 import os
+import requests
 from datetime import date, datetime, time
 import enum
 import enum
@@ -195,21 +196,25 @@ class LBSClient:
         """Create a new LBS task."""
         return self._request("POST", "tasks", json=task_data)
 
-    def update_task(self, task_id: str, task_data: Dict) -> Dict:
+    def update_task(self, task_id: str, task_data: Dict, force_override: bool = False) -> Dict:
         """Update an existing task."""
-        return self._request("PUT", f"tasks/{task_id}", json=task_data)
+        params = {"force_override": str(force_override).lower()}
+        return self._request("PUT", f"tasks/{task_id}", json=task_data, params=params)
 
-    def delete_task(self, task_id: str) -> Dict:
+    def delete_task(self, task_id: str, force_override: bool = False) -> Dict:
         """Delete a task."""
-        return self._request("DELETE", f"tasks/{task_id}")
+        params = {"force_override": str(force_override).lower()}
+        return self._request("DELETE", f"tasks/{task_id}", params=params)
 
-    def bulk_delete_tasks(self, task_ids: List[str]) -> Dict:
+    def bulk_delete_tasks(self, task_ids: List[str], force_override: bool = False) -> Dict:
         """Delete multiple tasks by ID list."""
-        return self._request("POST", "tasks/bulk-delete", json={"task_ids": task_ids})
+        params = {"force_override": str(force_override).lower()}
+        return self._request("POST", "tasks/bulk-delete", json={"task_ids": task_ids}, params=params)
 
-    def bulk_update_active(self, task_ids: List[str], active: bool) -> Dict:
+    def bulk_update_active(self, task_ids: List[str], active: bool, force_override: bool = False) -> Dict:
         """Update active status (archive/unarchive) for multiple tasks."""
-        return self._request("POST", "tasks/bulk-update-active", json={"task_ids": task_ids, "active": active})
+        params = {"force_override": str(force_override).lower()}
+        return self._request("POST", "tasks/bulk-update-active", json={"task_ids": task_ids, "active": active}, params=params)
 
     def toggle_task_completion(self, task_id: str, target_date: Union[date, str], status: Union[bool, TaskStatus] = TaskStatus.DONE) -> Dict:
         """
@@ -330,7 +335,9 @@ class LBSClient:
         override_load_value: Optional[float] = None,
         start_time: Optional[Union[time, str]] = None,
         end_time: Optional[Union[time, str]] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        force_override: bool = False,
+        is_locked: Optional[bool] = None
     ) -> Dict:
         """
         Create a task exception for a specific date.
@@ -342,6 +349,8 @@ class LBSClient:
         :param start_time: Optional start time override (HH:MM:SS).
         :param end_time: Optional end time override (HH:MM:SS).
         :param notes: Optional notes.
+        :param force_override: Set to True to bypass safety locks (User Intent).
+        :param is_locked: Set the lock state of the exception itself.
         """
         payload = {
             "task_id": task_id,
@@ -356,7 +365,11 @@ class LBSClient:
             payload["end_time"] = end_time.isoformat() if isinstance(end_time, time) else end_time
         if notes:
             payload["notes"] = notes
-        return self._request("POST", "exceptions", json=payload)
+        if is_locked is not None:
+            payload["is_locked"] = is_locked
+
+        params = {"force_override": str(force_override).lower()}
+        return self._request("POST", "exceptions", json=payload, params=params)
 
     def list_exceptions(
         self, 
@@ -391,7 +404,9 @@ class LBSClient:
         override_load_value: Optional[float] = None,
         start_time: Optional[Union[time, str]] = None,
         end_time: Optional[Union[time, str]] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        is_locked: Optional[bool] = None,
+        force_override: bool = False
     ) -> Dict:
         """
         Update an existing exception.
@@ -402,6 +417,8 @@ class LBSClient:
         :param start_time: Optional new start time.
         :param end_time: Optional new end time.
         :param notes: Optional new notes.
+        :param is_locked: Optional new lock state.
+        :param force_override: Set to True to bypass safety locks (User Intent).
         """
         payload = {}
         if exception_type is not None:
@@ -414,11 +431,16 @@ class LBSClient:
             payload["end_time"] = end_time.isoformat() if isinstance(end_time, time) else end_time
         if notes is not None:
             payload["notes"] = notes
-        return self._request("PUT", f"exceptions/{exception_id}", json=payload)
+        if is_locked is not None:
+            payload["is_locked"] = is_locked
 
-    def delete_exception(self, exception_id: int) -> Dict:
+        params = {"force_override": str(force_override).lower()}
+        return self._request("PUT", f"exceptions/{exception_id}", json=payload, params=params)
+
+    def delete_exception(self, exception_id: int, force_override: bool = False) -> Dict:
         """Delete an exception by ID."""
-        return self._request("DELETE", f"exceptions/{exception_id}")
+        params = {"force_override": str(force_override).lower()}
+        return self._request("DELETE", f"exceptions/{exception_id}", params=params)
 
     # --- System ---
 

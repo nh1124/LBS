@@ -147,23 +147,23 @@ All endpoints are prefixed with `/api/lbs`.
 | `/tasks` | GET | List master task definitions. Query: `context`, `active` |
 | `/tasks` | POST | Create a single task. |
 | `/tasks/{id}` | GET | Get master task definition. Query: `target_date` (optional) |
-| `/tasks/{id}` | PUT | Update a master task definition. |
-| `/tasks/{id}` | DELETE | Delete a task |
+| `/tasks/{id}` | PUT | Update a master task definition. Query: `force_override` (optional) |
+| `/tasks/{id}` | DELETE | Delete a task. Query: `force_override` (optional) |
 | `/tasks/{id}/resolved` | GET | **Get task with exception overrides** for a date. Query: `target_date` (required) |
 | `/tasks/{id}/complete`| POST | Record execution for a date. Payload: `{target_date: "YYYY-MM-DD", status: Enum}` |
 | `/tasks/{id}/history` | GET | Retrieve full execution history for a task. |
-| `/tasks/bulk-delete` | POST | Delete multiple tasks by ID list |
-| `/tasks/bulk-update-active` | POST | Update active status (archive/unarchive) |
+| `/tasks/bulk-delete` | POST | Delete multiple tasks. Query: `force_override` (optional) |
+| `/tasks/bulk-update-active` | POST | Update active status. Query: `force_override` (optional) |
 | `/tasks/upload-csv` | POST | Bulk import tasks via CSV. |
 
 ### Exceptions (`/exceptions`)
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/exceptions` | GET | List exceptions. Query: `task_id`, `start_date`, `end_date` |
-| `/exceptions` | POST | Create an exception. Types: `SKIP`, `OVERRIDE_LOAD`, `FORCE_DO`, `RESCHEDULE` |
+| `/exceptions` | POST | Create an exception. Query: `force_override` (optional) |
 | `/exceptions/{id}` | GET | Get a specific exception by ID |
-| `/exceptions/{id}` | PUT | Update an exception |
-| `/exceptions/{id}` | DELETE | Delete an exception |
+| `/exceptions/{id}` | PUT | Update an exception. Query: `force_override` (optional) |
+| `/exceptions/{id}` | DELETE | Delete an exception. Query: `force_override` (optional) |
 
 ### Daily Schedule & Analysis
 | Endpoint | Method | Description |

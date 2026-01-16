@@ -136,13 +136,14 @@ def get_resolved_task(
 def update_task(
     task_id: str,
     task_in: TaskUpdate,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
     update_data = task_in.model_dump(exclude_unset=True)
     try:
-        updated_task = manager.update_task(task_id, update_data)
+        updated_task = manager.update_task(task_id, update_data, force_override=force_override)
         if not updated_task:
             raise HTTPException(status_code=404, detail="Task not found")
         return updated_task
@@ -215,12 +216,13 @@ def upload_tasks_csv(
 @router.delete("/tasks/{task_id}")
 def delete_task(
     task_id: str,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
     try:
-        if not manager.delete_task(task_id):
+        if not manager.delete_task(task_id, force_override=force_override):
             raise HTTPException(status_code=404, detail="Task not found")
         return {"message": "Task deleted successfully"}
     except ValueError as e:
@@ -229,12 +231,13 @@ def delete_task(
 @router.post("/tasks/bulk-delete")
 def bulk_delete_tasks(
     bulk_in: TaskBulkDelete,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
     try:
-        count = manager.bulk_delete_tasks(bulk_in.task_ids)
+        count = manager.bulk_delete_tasks(bulk_in.task_ids, force_override=force_override)
         if count == 0:
             return {"message": "No tasks found to delete"}
         return {"message": f"Successfully deleted {count} tasks"}
@@ -244,16 +247,18 @@ def bulk_delete_tasks(
 @router.post("/tasks/bulk-update-active")
 def bulk_update_active(
     bulk_in: TaskBulkActiveUpdate,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    count = manager.bulk_update_active(bulk_in.task_ids, bulk_in.active)
-    
-    if count == 0:
-        return {"message": "No tasks found to update"}
-    
-    return {"message": f"Successfully updated active status for {count} tasks"}
+    try:
+        count = manager.bulk_update_active(bulk_in.task_ids, bulk_in.active, force_override=force_override)
+        if count == 0:
+            return {"message": "No tasks found to update"}
+        return {"message": f"Successfully updated active status for {count} tasks"}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.post("/tasks/{task_id}/complete")
 def handle_task_completion(
@@ -269,9 +274,10 @@ def handle_task_completion(
 
     return manager.update_task_execution(task_id, req.target_date, req.status)
 
-@router.post("/exceptions")
+@router.post("/exceptions", response_model=ExceptionResponse)
 def create_exception(
     exc: ExceptionCreate,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
@@ -280,8 +286,11 @@ def create_exception(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    created = manager.create_exception(exc.model_dump())
-    return created
+    try:
+        created = manager.create_exception(exc.model_dump(), force_override=force_override)
+        return created
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.get("/exceptions")
 def list_exceptions(
@@ -294,7 +303,7 @@ def list_exceptions(
     manager = LBSManager(db, identity.user_id)
     return manager.list_exceptions(task_id, start_date, end_date)
 
-@router.get("/exceptions/{exception_id}")
+@router.get("/exceptions/{exception_id}", response_model=ExceptionResponse)
 def get_exception(
     exception_id: int,
     identity: Identity = Depends(require_user_identity),
@@ -306,16 +315,17 @@ def get_exception(
         raise HTTPException(status_code=404, detail="Exception not found")
     return exc
 
-@router.put("/exceptions/{exception_id}")
+@router.put("/exceptions/{exception_id}", response_model=ExceptionResponse)
 def update_exception(
     exception_id: int,
     exc_update: ExceptionUpdate,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
     try:
-        updated = manager.update_exception(exception_id, exc_update.model_dump(exclude_unset=True))
+        updated = manager.update_exception(exception_id, exc_update.model_dump(exclude_unset=True), force_override=force_override)
         if not updated:
             raise HTTPException(status_code=404, detail="Exception not found")
         return updated
@@ -325,12 +335,13 @@ def update_exception(
 @router.delete("/exceptions/{exception_id}")
 def delete_exception(
     exception_id: int,
+    force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
     try:
-        if not manager.delete_exception(exception_id):
+        if not manager.delete_exception(exception_id, force_override=force_override):
             raise HTTPException(status_code=404, detail="Exception not found")
         return {"message": "Exception deleted successfully"}
     except ValueError as e:

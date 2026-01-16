@@ -233,13 +233,25 @@ class LBSManager:
         self.session.commit()
         self.refresh_schedule(start, end, force=True)
 
-    def update_task(self, task_id: str, update_data: Dict[str, Any]) -> Optional[Task]:
+    def _check_permission(self, task: Task, exception: Optional[TaskException] = None, force_override: bool = False):
+        """Unified lock enforcement following V2.1 Child Priority Matrix"""
+        if force_override:
+            return
+            
+        # Logic: Exception exists ? Exc.Lock : Task.Lock
+        is_locked = exception.is_locked if exception else task.is_locked
+        
+        if is_locked:
+            name = exception.exception_type if exception else task.task_name
+            raise ValueError(f"Action blocked: '{name}' is locked. Use force_override=true to modify.")
+
+    def update_task(self, task_id: str, update_data: Dict[str, Any], force_override: bool = False) -> Optional[Task]:
         task = self.repo.get_task(self.user_id, task_id)
         if not task:
             return None
         
-        if task.is_locked and not update_data.get("is_locked", True) == False:
-            raise ValueError(f"Task '{task.task_name}' is locked and cannot be modified")
+        # Lock check (V2.1 Section A: Task def only depends on Task.is_locked)
+        self._check_permission(task, force_override=force_override)
 
         for field, value in update_data.items():
             setattr(task, field, value)
@@ -254,30 +266,24 @@ class LBSManager:
         self.refresh_schedule(expand_start, expand_end, force=True)
         return task
 
-    def delete_task(self, task_id: str) -> bool:
+    def delete_task(self, task_id: str, force_override: bool = False) -> bool:
         task = self.repo.get_task(self.user_id, task_id)
         if not task:
             return False
         
-        if task.is_locked:
-            raise ValueError(f"Task '{task.task_name}' is locked and cannot be deleted")
+        # Lock check (V2.1 Section A: Task def only depends on Task.is_locked)
+        self._check_permission(task, force_override=force_override)
         
         self.repo.delete_task(task)
         self.session.commit()
         self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
         return True
 
-    def bulk_delete_tasks(self, task_ids: List[str]) -> int:
-        # Check if any tasks are locked
-        locked_tasks = self.session.query(Task).filter(
-            Task.task_id.in_(task_ids),
-            Task.user_id == self.user_id,
-            Task.is_locked == True
-        ).all()
-        
-        if locked_tasks:
-            names = ", ".join([t.task_name for t in locked_tasks])
-            raise ValueError(f"Cannot delete: some tasks are locked ({names})")
+    def bulk_delete_tasks(self, task_ids: List[str], force_override: bool = False) -> int:
+        if not force_override:
+            tasks = self.repo.get_tasks_by_ids(self.user_id, task_ids)
+            for t in tasks:
+                self._check_permission(t, force_override=force_override)
 
         count = self.repo.bulk_delete_tasks(self.user_id, task_ids)
         if count > 0:
@@ -285,21 +291,33 @@ class LBSManager:
             self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
         return count
 
-    def bulk_update_active(self, task_ids: List[str], active: bool) -> int:
-        tasks = self.repo.bulk_update_active(self.user_id, task_ids, active)
-        if tasks:
-            from datetime import datetime
+    def bulk_update_active(self, task_ids: List[str], active: bool, force_override: bool = False) -> int:
+        if not force_override:
+            tasks = self.repo.get_tasks_by_ids(self.user_id, task_ids)
             for t in tasks:
+                self._check_permission(t, force_override=force_override)
+
+        updated = self.repo.bulk_update_active(self.user_id, task_ids, active)
+        if updated:
+            from datetime import datetime
+            for t in updated:
                 t.updated_at = datetime.utcnow()
             self.session.commit()
             self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
-        return len(tasks)
+        return len(updated)
 
     def get_task_history(self, task_id: str, start_date: date, end_date: date) -> List[TaskExecution]:
         return self.repo.get_task_history(task_id, start_date, end_date)
 
-    def create_exception(self, exception_data: Dict[str, Any]) -> TaskException:
+    def create_exception(self, exception_data: Dict[str, Any], force_override: bool = False) -> TaskException:
         from ..models.database import TaskException
+        
+        # Lock check (V2.1 Section B: Create uses Task.is_locked as fallback)
+        task = self.repo.get_task(self.user_id, exception_data["task_id"])
+        if not task:
+            raise ValueError("Task not found")
+        self._check_permission(task, force_override=force_override)
+
         new_exc = TaskException(
             **exception_data,
             user_id=self.user_id
@@ -316,14 +334,14 @@ class LBSManager:
     def list_exceptions(self, task_id: Optional[str] = None, start_date: Optional[date] = None, end_date: Optional[date] = None):
         return self.repo.list_exceptions(self.user_id, task_id, start_date, end_date)
 
-    def update_exception(self, exception_id: int, update_data: Dict[str, Any]):
+    def update_exception(self, exception_id: int, update_data: Dict[str, Any], force_override: bool = False):
         exc = self.repo.get_exception(self.user_id, exception_id)
         if not exc:
             return None
         
-        # If locked, only allow updating if we are explicitly unlocking it
-        if exc.is_locked and not update_data.get("is_locked", True) == False:
-            raise ValueError("Exception is locked and cannot be modified")
+        # Lock check (V2.1 Section B: Update uses Exc.is_locked priority)
+        task = self.repo.get_task(self.user_id, exc.task_id)
+        self._check_permission(task, exception=exc, force_override=force_override)
 
         for field, value in update_data.items():
             setattr(exc, field, value)
@@ -333,13 +351,14 @@ class LBSManager:
         self.refresh_schedule(exc.target_date, exc.target_date, force=True)
         return exc
 
-    def delete_exception(self, exception_id: int) -> bool:
+    def delete_exception(self, exception_id: int, force_override: bool = False) -> bool:
         exc = self.repo.get_exception(self.user_id, exception_id)
         if not exc:
             return False
         
-        if exc.is_locked:
-            raise ValueError("Exception is locked and cannot be deleted")
+        # Lock check (V2.1 Section B: Delete uses Exc.is_locked priority)
+        task = self.repo.get_task(self.user_id, exc.task_id)
+        self._check_permission(task, exception=exc, force_override=force_override)
         
         target_date = exc.target_date
         self.repo.delete_exception(exc)
@@ -371,7 +390,7 @@ class LBSManager:
             "base_load_score": task.base_load_score,
             "active": task.active,
             "rule_type": task.rule_type,
-            "is_locked": task.is_locked or (exception.is_locked if exception else False),
+            "is_locked": exception.is_locked if exception else task.is_locked,
             "target_date": target_date,
             # Times - apply exception overrides if present
             "start_time": exception.start_time if exception and exception.start_time else task.start_time,

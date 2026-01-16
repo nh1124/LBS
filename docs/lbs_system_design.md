@@ -87,6 +87,7 @@ erDiagram
         string context
         float base_load_score
         boolean active
+        boolean is_locked
         string rule_type
         date due_date
         boolean mon_to_sun
@@ -103,6 +104,7 @@ erDiagram
         float override_load_value
         time start_time
         time end_time
+        boolean is_locked
     }
     
     LBS_DAILY_CACHE {
@@ -135,6 +137,7 @@ erDiagram
 | `context` | String | Project/Spoke tag |
 | `base_load_score` | Float | 0.0 – 10.0 |
 | `active` | Boolean | Enabled flag |
+| `is_locked` | Boolean | Safety lock flag |
 | `rule_type` | Enum | Recurrence type |
 
 ### 4.2 Task Execution History Table (`task_executions`)
@@ -149,6 +152,7 @@ Stores individual outcomes for task instances (done, skipped, in-progress).
 | `status` | Enum | `done`, `skipped`, `in_progress`, `todo` |
 | `progress` | Int | 0-100 |
 | `actual_time`| Int | Minutes spent (optional) |
+| `is_locked` | Boolean | Safety lock flag |
 | `created_at` | DateTime | Timestamp of recording |
 ### 4.3 Exception Types
 | Type | Behavior |
@@ -157,6 +161,7 @@ Stores individual outcomes for task instances (done, skipped, in-progress).
 | `OVERRIDE_LOAD` | Replace load score with custom value |
 | `FORCE_DO` | Add task on non-scheduled date |
 | `RESCHEDULE` | Change start/end time without affecting load or occurrence |
+| `MANUAL_LOCK` | Pin a specific day without other changes |
 ### 4.4 User-Specific Configuration
 | Key | Default | Description |
 |-----|---------|-------------|

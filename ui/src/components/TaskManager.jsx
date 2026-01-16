@@ -122,7 +122,7 @@ const TaskManager = ({ token, apiKey }) => {
         e.preventDefault();
         try {
             if (editingTask) {
-                await api.put(`/tasks/${editingTask.task_id}`, formData);
+                await api.put(`/tasks/${editingTask.task_id}?force_override=true`, formData);
             } else {
                 await api.post('/tasks', formData);
             }
@@ -143,7 +143,7 @@ const TaskManager = ({ token, apiKey }) => {
     const handleDelete = async (id) => {
         if (window.confirm("Delete this task?")) {
             try {
-                await api.delete(`/tasks/${id}`);
+                await api.delete(`/tasks/${id}?force_override=true`);
                 fetchTasks();
                 setSelectedTaskIds(prev => prev.filter(tid => tid !== id));
             } catch (err) {
@@ -155,7 +155,7 @@ const TaskManager = ({ token, apiKey }) => {
     const handleBulkDelete = async () => {
         if (window.confirm(`Delete ${selectedTaskIds.length} tasks?`)) {
             try {
-                await api.post('/tasks/bulk-delete', { task_ids: selectedTaskIds });
+                await api.post('/tasks/bulk-delete?force_override=true', { task_ids: selectedTaskIds });
                 alert("Tasks deleted successfully");
                 setSelectedTaskIds([]);
                 fetchTasks();
@@ -173,7 +173,7 @@ const TaskManager = ({ token, apiKey }) => {
 
     const handleToggleActive = async (task) => {
         try {
-            await api.put(`/tasks/${task.task_id}`, { active: !task.active });
+            await api.put(`/tasks/${task.task_id}?force_override=true`, { active: !task.active });
             fetchTasks();
         } catch (err) {
             alert("Error toggling active state: " + err.message);

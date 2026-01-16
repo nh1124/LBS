@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, Lock } from 'lucide-react';
 
 const LBSTimeline = ({ startDate, weekData, onTaskClick }) => {
     // Generate 7 days from start date
@@ -136,7 +136,10 @@ const LBSTimeline = ({ startDate, weekData, onTaskClick }) => {
                                     >
                                         <div className="absolute inset-0 opacity-10" style={{ backgroundColor: getLevelColor(task.load) }} />
                                         <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: getLevelColor(task.load) }} />
-                                        <div className="font-bold truncate relative pl-2">{task.task_name}</div>
+                                        <div className="font-bold truncate relative pl-2 flex items-center gap-1">
+                                            {task.task_name}
+                                            {task.is_locked && <Lock size={10} className="text-amber-500" />}
+                                        </div>
                                         <div className="text-[10px] opacity-70 truncate relative pl-2 flex items-center gap-1">
                                             <Clock size={10} /> {task.start_time.slice(0, 5)} - {task.end_time?.slice(0, 5)}
                                         </div>

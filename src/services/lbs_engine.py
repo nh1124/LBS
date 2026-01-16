@@ -212,12 +212,14 @@ class LBSEngine:
             has_exception = False
             exception_type = None
             
-            # Apply exception time overrides if present
+            # Apply exceptions if present
+            is_locked = task.is_locked
             if exceptions:
                 exception = exceptions.get((e.task_id, target_date))
                 if exception:
                     has_exception = True
                     exception_type = exception.exception_type
+                    is_locked = exception.is_locked # Exception lock overrides Task lock
                     if exception.start_time:
                         start_time = exception.start_time
                     if exception.end_time:
@@ -232,7 +234,8 @@ class LBSEngine:
                 "start_time": start_time,
                 "end_time": end_time,
                 "has_exception": has_exception,
-                "exception_type": exception_type
+                "exception_type": exception_type,
+                "is_locked": is_locked
             })
         return result
 

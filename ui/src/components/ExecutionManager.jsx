@@ -16,8 +16,10 @@ import {
     X,
     Clock,
     AlertTriangle,
+    Trash2,
     Plus,
-    Trash2
+    Lock,
+    Unlock
 } from 'lucide-react';
 
 const ExecutionManager = ({ token, apiKey }) => {
@@ -126,7 +128,7 @@ const ExecutionManager = ({ token, apiKey }) => {
                 notes: exceptionForm.notes || null,
                 is_locked: exceptionForm.is_locked
             };
-            await api.post('/exceptions', payload);
+            await api.post('/exceptions?force_override=true', payload);
             await fetchTaskExceptions(selectedTask.task_id);
             await fetchDayData(selectedDate);
             setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '', is_locked: false });
@@ -146,7 +148,7 @@ const ExecutionManager = ({ token, apiKey }) => {
                 notes: exceptionForm.notes || null,
                 is_locked: exceptionForm.is_locked
             };
-            await api.put(`/exceptions/${editingExceptionId}`, payload);
+            await api.put(`/exceptions/${editingExceptionId}?force_override=true`, payload);
             await fetchTaskExceptions(selectedTask.task_id);
             await fetchDayData(selectedDate);
             setEditingExceptionId(null);
@@ -159,7 +161,7 @@ const ExecutionManager = ({ token, apiKey }) => {
     const handleDeleteException = async (exceptionId) => {
         if (!confirm("Delete this exception?")) return;
         try {
-            await api.delete(`/exceptions/${exceptionId}`);
+            await api.delete(`/exceptions/${exceptionId}?force_override=true`);
             await fetchTaskExceptions(selectedTask.task_id);
             await fetchDayData(selectedDate);
         } catch (err) {
@@ -282,8 +284,9 @@ const ExecutionManager = ({ token, apiKey }) => {
                                             {task.load.toFixed(1)}
                                         </div>
                                         <div className="flex flex-col gap-1">
-                                            <span className={`text-lg font-bold ${isDone ? 'text-emerald-400/80 line-through' : 'text-slate-200'}`}>
+                                            <span className={`text-lg font-bold flex items-center gap-2 ${isDone ? 'text-emerald-400/80 line-through' : 'text-slate-200'}`}>
                                                 {task.task_name}
+                                                {task.is_locked && <Lock size={14} className="text-amber-500" />}
                                             </span>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-white/5 border border-white/5">
@@ -301,8 +304,8 @@ const ExecutionManager = ({ token, apiKey }) => {
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={() => openExceptionModal(task)}
-                                            className="w-12 h-12 rounded-xl flex items-center justify-center transition-all bg-white/5 text-slate-500 hover:text-purple-400 hover:bg-purple-500/10"
-                                            title="Manage Exceptions"
+                                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${task.is_locked ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20' : 'bg-white/5 text-slate-500 hover:text-purple-400 hover:bg-purple-500/10'}`}
+                                            title={task.is_locked ? "Manage Locked Configuration" : "Manage Exceptions"}
                                         >
                                             <Settings2 size={20} />
                                         </button>

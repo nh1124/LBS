@@ -72,6 +72,12 @@ class TaskRepository:
     def get_task(self, user_id: str, task_id: str) -> Optional[Task]:
         return self.session.query(Task).filter(Task.task_id == task_id, Task.user_id == user_id).first()
 
+    def get_tasks_by_ids(self, user_id: str, task_ids: List[str]) -> List[Task]:
+        return self.session.query(Task).filter(
+            Task.task_id.in_(task_ids),
+            Task.user_id == user_id
+        ).all()
+
     def list_tasks(self, user_id: str, context: Optional[str] = None, active: Optional[bool] = None) -> List[Task]:
         query = self.session.query(Task).filter(Task.user_id == user_id)
         if active is not None:

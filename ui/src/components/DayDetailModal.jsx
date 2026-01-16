@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Activity, Layers, Tag, Info, CheckCircle2, Circle, XCircle } from 'lucide-react';
+import { X, Activity, Layers, Tag, Info, CheckCircle2, Circle, XCircle, Lock } from 'lucide-react';
 
 const DayDetailModal = ({ isOpen, onClose, data, onToggleTaskStatus, isUpdating }) => {
     if (!isOpen || !data) return null;
@@ -108,8 +108,9 @@ const DayDetailModal = ({ isOpen, onClose, data, onToggleTaskStatus, isUpdating 
                                     <div key={idx} className={`glass-card p-4 flex justify-between items-center bg-white/5 transition-all border ${isDone ? 'border-emerald-500/20 bg-emerald-500/5' : isSkipped ? 'border-amber-500/20 bg-amber-500/5' : 'border-transparent'}`}>
                                         <div className="flex items-center gap-4">
                                             <div className="flex flex-col">
-                                                <span className={`font-bold ${isDone ? 'text-emerald-400/80 line-through' : 'text-slate-200'}`}>
+                                                <span className={`font-bold flex items-center gap-2 ${isDone ? 'text-emerald-400/80 line-through' : 'text-slate-200'}`}>
                                                     {task.task_name}
+                                                    {task.is_locked && <Lock size={12} className="text-amber-500" />}
                                                 </span>
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{task.context}</span>

@@ -104,6 +104,7 @@ class ScheduleTask(BaseModel):
     end_time: Optional[time] = None
     has_exception: bool = False
     exception_type: Optional[str] = None
+    is_locked: bool = False
     
     class Config: from_attributes = True
 
