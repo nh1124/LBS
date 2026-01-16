@@ -232,14 +232,14 @@ const Dashboard = ({ token, apiKey }) => {
                 </div>
 
                 {/* Today's Tasks Widget */}
-                <div className="glass-card p-6 flex flex-col">
-                    <div className="flex justify-between items-center mb-6">
+                <div className="glass-card p-6 flex flex-col overflow-hidden">
+                    <div className="flex justify-between items-center mb-4 flex-shrink-0">
                         <h3 className="font-bold text-lg">Today's Tasks</h3>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold uppercase tracking-wider">
                             {data.today.tasks.length} Total
                         </span>
                     </div>
-                    <div className="flex flex-col gap-3 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
+                    <div className="flex flex-col gap-2 overflow-y-auto flex-1 pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20">
                         {data.today.tasks.length === 0 ? (
                             <div className="text-center py-10 text-slate-500 text-sm">No tasks for today.</div>
                         ) : (
@@ -247,21 +247,21 @@ const Dashboard = ({ token, apiKey }) => {
                                 const isDone = task.status === 'done';
                                 const isSkipped = task.status === 'skipped';
                                 return (
-                                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 group hover:bg-white/10 transition-all">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className={`text-sm font-bold truncate max-w-[140px] ${isDone ? 'text-emerald-400/70 line-through' : 'text-slate-200'}`}>
+                                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 group hover:bg-white/10 transition-all flex-shrink-0">
+                                        <div className="flex flex-col gap-0.5 min-w-0 flex-1 mr-2">
+                                            <span className={`text-sm font-bold truncate ${isDone ? 'text-emerald-400/70 line-through' : 'text-slate-200'}`}>
                                                 {task.task_name}
                                             </span>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">{task.context}</span>
+                                                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest truncate">{task.context}</span>
                                                 {task.status !== 'todo' && (
-                                                    <span className={`text-[8px] px-1 py-0.25 rounded-full font-bold uppercase ${isDone ? 'bg-emerald-500/20 text-emerald-400' : isSkipped ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                    <span className={`text-[8px] px-1 py-0.25 rounded-full font-bold uppercase flex-shrink-0 ${isDone ? 'bg-emerald-500/20 text-emerald-400' : isSkipped ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
                                                         {task.status}
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
-                                        <div className={`p-1.5 rounded-lg ${isDone ? 'text-emerald-400' : isSkipped ? 'text-amber-400' : 'text-slate-600'}`}>
+                                        <div className={`p-1.5 rounded-lg flex-shrink-0 ${isDone ? 'text-emerald-400' : isSkipped ? 'text-amber-400' : 'text-slate-600'}`}>
                                             {isDone ? <CheckCircle2 size={16} /> : isSkipped ? <XCircle size={16} /> : <Circle size={16} />}
                                         </div>
                                     </div>

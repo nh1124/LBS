@@ -44,21 +44,23 @@ const LBSCalendar = ({ token, apiKey }) => {
         }
     };
 
+    const [weekStartDate, setWeekStartDate] = useState(null);
+
     const fetchWeekData = async () => {
         setLoading(true);
         try {
-            // Calculate start of week (Sunday)
+            // Calculate start of week (Friday for business week, or keep Sunday for traditional)
             const d = new Date(currentDate);
             const day = d.getDay();
-            const diff = d.getDate() - day; // adjust when day is sunday
+            // Keep current week starting from the current date, show 7 days ahead
             const start = new Date(d);
-            start.setDate(diff);
             const end = new Date(start);
             end.setDate(start.getDate() + 6);
 
             const sStr = start.toISOString().split('T')[0];
             const eStr = end.toISOString().split('T')[0];
 
+            setWeekStartDate(start);
             const resp = await api.get(`/schedule?start_date=${sStr}&end_date=${eStr}`);
             setWeekData(resp.data);
         } catch (err) {
@@ -255,7 +257,7 @@ const LBSCalendar = ({ token, apiKey }) => {
             ) : (
                 <div className="flex-grow flex flex-col min-h-0 h-[calc(100vh-200px)]">
                     <LBSTimeline
-                        startDate={currentDate}
+                        startDate={weekStartDate || currentDate}
                         weekData={weekData}
                         onTaskClick={(task, dateStr) => handleDayClick(dateStr)}
                     />
