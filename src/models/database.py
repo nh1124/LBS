@@ -69,6 +69,7 @@ class TaskException(Base):
     start_time = Column(Time, nullable=True)  # Override start time for this date
     end_time = Column(Time, nullable=True)    # Override end time for this date
     notes = Column(Text)
+    is_locked = Column(Boolean, default=False)  # Lock this exception from modifications
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class TaskExecution(Base):

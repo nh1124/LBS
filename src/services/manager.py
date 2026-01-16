@@ -304,6 +304,10 @@ class LBSManager:
         if not exc:
             return None
         
+        # If locked, only allow updating if we are explicitly unlocking it
+        if exc.is_locked and not update_data.get("is_locked", True) == False:
+            raise ValueError("Exception is locked and cannot be modified")
+
         for field, value in update_data.items():
             setattr(exc, field, value)
         
@@ -316,6 +320,9 @@ class LBSManager:
         exc = self.repo.get_exception(self.user_id, exception_id)
         if not exc:
             return False
+        
+        if exc.is_locked:
+            raise ValueError("Exception is locked and cannot be deleted")
         
         target_date = exc.target_date
         self.repo.delete_exception(exc)

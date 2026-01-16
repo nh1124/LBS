@@ -308,10 +308,13 @@ def update_exception(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    updated = manager.update_exception(exception_id, exc_update.model_dump(exclude_unset=True))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Exception not found")
-    return updated
+    try:
+        updated = manager.update_exception(exception_id, exc_update.model_dump(exclude_unset=True))
+        if not updated:
+            raise HTTPException(status_code=404, detail="Exception not found")
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.delete("/exceptions/{exception_id}")
 def delete_exception(
@@ -320,9 +323,12 @@ def delete_exception(
     db: Session = Depends(get_db)
 ):
     manager = LBSManager(db, identity.user_id)
-    if not manager.delete_exception(exception_id):
-        raise HTTPException(status_code=404, detail="Exception not found")
-    return {"message": "Exception deleted successfully"}
+    try:
+        if not manager.delete_exception(exception_id):
+            raise HTTPException(status_code=404, detail="Exception not found")
+        return {"message": "Exception deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.get("/calculate/{target_date}")
 def calculate_load(

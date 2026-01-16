@@ -124,6 +124,7 @@ class ExceptionCreate(BaseModel):
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     notes: Optional[str] = None
+    is_locked: bool = False
 
 class ExceptionUpdate(BaseModel):
     exception_type: Optional[str] = None
@@ -131,6 +132,7 @@ class ExceptionUpdate(BaseModel):
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     notes: Optional[str] = None
+    is_locked: Optional[bool] = None
 
 class ExceptionResponse(BaseModel):
     id: int
@@ -141,6 +143,7 @@ class ExceptionResponse(BaseModel):
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     notes: Optional[str] = None
+    is_locked: bool = False
     created_at: datetime
     
     class Config: from_attributes = True

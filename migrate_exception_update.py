@@ -63,6 +63,21 @@ def run_migration():
                 conn.rollback()
         else:
             print("✓ 'end_time' column already exists in task_exceptions")
+        
+        print(f"DEBUG: exc_columns={exc_columns}")
+        print(f"DEBUG: 'is_locked' in exc_columns = {'is_locked' in exc_columns}")
+        
+        if 'is_locked' not in exc_columns:
+            print("Adding 'is_locked' column to task_exceptions table...")
+            try:
+                conn.execute(text("ALTER TABLE task_exceptions ADD COLUMN is_locked BOOLEAN DEFAULT FALSE"))
+                conn.commit()
+                print("✓ Added 'is_locked' column to task_exceptions")
+            except Exception as e:
+                print(f"✗ Error adding 'is_locked' to task_exceptions: {e}")
+                conn.rollback()
+        else:
+            print("✓ 'is_locked' column already exists in task_exceptions")
     
     print("\nMigration complete!")
 

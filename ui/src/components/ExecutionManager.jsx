@@ -35,7 +35,8 @@ const ExecutionManager = ({ token, apiKey }) => {
         override_load_value: '',
         start_time: '',
         end_time: '',
-        notes: ''
+        notes: '',
+        is_locked: false
     });
     const [editingExceptionId, setEditingExceptionId] = useState(null);
 
@@ -98,7 +99,8 @@ const ExecutionManager = ({ token, apiKey }) => {
             override_load_value: '',
             start_time: '',
             end_time: '',
-            notes: ''
+            notes: '',
+            is_locked: false
         });
         await fetchTaskExceptions(task.task_id);
         setIsExceptionModalOpen(true);
@@ -121,12 +123,13 @@ const ExecutionManager = ({ token, apiKey }) => {
                 override_load_value: exceptionForm.override_load_value ? parseFloat(exceptionForm.override_load_value) : null,
                 start_time: exceptionForm.start_time || null,
                 end_time: exceptionForm.end_time || null,
-                notes: exceptionForm.notes || null
+                notes: exceptionForm.notes || null,
+                is_locked: exceptionForm.is_locked
             };
             await api.post('/exceptions', payload);
             await fetchTaskExceptions(selectedTask.task_id);
             await fetchDayData(selectedDate);
-            setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '' });
+            setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '', is_locked: false });
         } catch (err) {
             alert("Error creating exception: " + (err.response?.data?.detail || err.message));
         }
@@ -140,13 +143,14 @@ const ExecutionManager = ({ token, apiKey }) => {
                 override_load_value: exceptionForm.override_load_value ? parseFloat(exceptionForm.override_load_value) : null,
                 start_time: exceptionForm.start_time || null,
                 end_time: exceptionForm.end_time || null,
-                notes: exceptionForm.notes || null
+                notes: exceptionForm.notes || null,
+                is_locked: exceptionForm.is_locked
             };
             await api.put(`/exceptions/${editingExceptionId}`, payload);
             await fetchTaskExceptions(selectedTask.task_id);
             await fetchDayData(selectedDate);
             setEditingExceptionId(null);
-            setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '' });
+            setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '', is_locked: false });
         } catch (err) {
             alert("Error updating exception: " + (err.response?.data?.detail || err.message));
         }
@@ -170,7 +174,8 @@ const ExecutionManager = ({ token, apiKey }) => {
             override_load_value: exc.override_load_value || '',
             start_time: exc.start_time || '',
             end_time: exc.end_time || '',
-            notes: exc.notes || ''
+            notes: exc.notes || '',
+            is_locked: exc.is_locked || false
         });
     };
 
@@ -409,6 +414,18 @@ const ExecutionManager = ({ token, apiKey }) => {
                                             onChange={(e) => setExceptionForm({ ...exceptionForm, notes: e.target.value })}
                                         />
                                     </div>
+
+                                    <div className="col-span-2 flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setExceptionForm({ ...exceptionForm, is_locked: !exceptionForm.is_locked })}
+                                            className={`w-12 h-6 rounded-full transition-all relative ${exceptionForm.is_locked ? 'bg-purple-500' : 'bg-white/10'}`}
+                                        >
+                                            <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all ${exceptionForm.is_locked ? 'left-6' : 'left-0.5'}`} />
+                                        </button>
+                                        <label className="text-sm text-slate-300">Lock Exception</label>
+                                        <span className="text-xs text-slate-500">(Prevent external modifications)</span>
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-3">
@@ -423,7 +440,7 @@ const ExecutionManager = ({ token, apiKey }) => {
                                             <button
                                                 onClick={() => {
                                                     setEditingExceptionId(null);
-                                                    setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '' });
+                                                    setExceptionForm({ exception_type: 'SKIP', override_load_value: '', start_time: '', end_time: '', notes: '', is_locked: false });
                                                 }}
                                                 className="px-6 bg-white/5 hover:bg-white/10 py-3 rounded-xl font-bold transition-all"
                                             >
