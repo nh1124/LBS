@@ -1,64 +1,64 @@
-# LBS API タイムゾーン対応アップデート仕様書 (外部連携エージェント向け)
+# LBS API Timezone Update Specification (For External Integration Agents)
 
-## 1. 概要
-Life Balance System (LBS) のAPIにおいて、タスクおよびスケジュールの**タイムゾーン（Timezone）対応**が実装されました。
-本ドキュメントは、LBSのAPIを外部から利用・連携しているサービス（およびその開発・改修エージェント）向けに変更点と必要な対応をまとめたものです。
+## 1. Overview
+The Load Balancing System (LBS) API has been updated to support **Timezone-aware** tasks and scheduling.
+This document outlines the API changes and required actions for external services, agents, and systems that integrate with the LBS API.
 
-## 2. APIの変更点と追加仕様
+## 2. API Changes and New Specifications
 
-### ① リクエストヘッダー `X-Timezone` の導入（クライアントの視点）
-APIを利用するクライアント（アプリ、Bot、外部サービス等）が**「どのタイムゾーンからリクエストを行っているか（どのタイムゾーンの視点でスケジュールを見たいか）」**をサーバーに伝えるためのヘッダーが追加されました。
+### 1. Introduction of `X-Timezone` Request Header (Client Perspective)
+A new header has been added for clients (apps, bots, external services) to inform the server **from which timezone the request is being made (i.e., which timezone the schedule should be calculated and displayed in)**.
 
-- **ヘッダー名**: `X-Timezone`
-- **値の形式**: IANAタイムゾーン文字列 (例: `Asia/Tokyo`, `Europe/Brussels`, `UTC`)
-- **デフォルト**: 指定がない場合は `UTC` として処理されます。
-- **影響範囲**: `GET /schedule`, `GET /tasks/{id}/resolved`, `GET /dashboard`, `GET /heatmap` などの時間計算を伴うすべてのAPIエンドポイント。このヘッダーの基準で日付境界の計算とスケジュールの返却が行われます。
+- **Header Name**: `X-Timezone`
+- **Value Format**: IANA Time Zone string (e.g., `Asia/Tokyo`, `Europe/Brussels`, `UTC`)
+- **Default value**: If omitted, it will be treated as `UTC`.
+- **Affected Endpoints**: All endpoints involving time-based calculations, such as `GET /schedule`, `GET /tasks/{id}/resolved`, `GET /dashboard`, `GET /heatmap`. The server will calculate date boundaries and return schedules based on the specified timezone.
 
-### ② タスクデータの `timezone` フィールド追加（タスクの絶対時間）
-各タスクが「どのタイムゾーンの時刻を基準に行われるか」を定義するため、タスクのデータモデルに `timezone` フィールドが追加されました。
+### 2. Addition of `timezone` Field to Task Data (Absolute Task Time)
+A new `timezone` field has been added to the task data model to define **the specific timezone in which a task is intended to be executed**.
 
-- **対象エンドポイント**: 
-  - `POST /tasks` (タスク作成)
-  - `PUT /tasks/{id}` (タスク更新)
-- **追加フィールド**: `"timezone": "Asia/Tokyo"` などのIANAタイムゾーン文字列。
-- **仕様**: これにより、同じ `09:00:00` という `start_time` 指定であっても、「日本時間の9時」か「アメリカ時間の9時」かを明確に保持し、クライアントからのリクエスト時（上記① `X-Timezone`）に合わせて自動的に時差計算（シフト）が行われます。
+- **Affected Endpoints**:
+  - `POST /tasks` (Create Task)
+  - `PUT /tasks/{id}` (Update Task)
+- **New Field**: An IANA Time Zone string such as `"timezone": "Asia/Tokyo"`.
+- **Specification**: This ensures that a `start_time` of `09:00:00` explicitly means "9:00 AM in Tokyo time" or "9:00 AM in New York time." When a client requests a schedule (using the `X-Timezone` header), the server will automatically calculate the time difference (shift) and return the appropriate localized time.
 
 ---
 
-## 3. Python APIクライアント (`lbs_client.py` / `lbs_client_async.py`) の変更点
-公式提供されているPython用APIクライアントに、上記 `X-Timezone` を自動付与する仕組みを追加しました。
+## 3. Changes to Python API Clients (`lbs_client.py` / `lbs_client_async.py`)
+The officially provided Python API clients have been updated to automatically include the `X-Timezone` header.
 
-### 初期化（コンストラクタ）への引数追加
-インスタンス化の際に `x_timezone` 引数を渡すことで、以降のすべてのAPIリクエストに自動で `X-Timezone` ヘッダーが付与されます。
+### Addition of Argument to Initialization (Constructor)
+By passing the `x_timezone` argument during instantiation, the `X-Timezone` header will be automatically added to all subsequent API requests.
 
-**[変更前の利用例]**
+**[Previous Usage]**
 ```python
 client = LBSClient(api_key="your-api-key")
-# 全てUTC基準で処理されていた
+# All requests were processed based on UTC.
 ```
 
-**[変更後の利用例]**
+**[New Usage]**
 ```python
-# 実行環境またはユーザー設定のタイムゾーンを指定する
+# Specify the execution environment's or user's specific timezone
 client = LBSClient(api_key="your-api-key", x_timezone="Asia/Tokyo")
 
-# 以降、get_schedule() などはすべて日本時間基準で取得・変換される
+# From here on, methods like get_schedule() will fetch and convert data based on Tokyo time.
 schedule = client.get_schedule(start_date="2026-02-27", end_date="2026-03-01")
 ```
 
 ---
 
-## 4. 外部サービス開発エージェントへの修正指示（Action Items）
-このAPIを利用する連携サービス（Bot、スクリプト、バックエンド等）においては、以下の改修を行ってください。
+## 4. Action Items for External Service Development Agents
+For external integration services (bots, scripts, backend services, AI agents) using this API, please make the following modifications:
 
-1. **タイムゾーンの特定とヘッダー付与**:
-   - サービスを利用しているユーザーのタイムゾーン環境（設定値や環境変数）を特定してください。
-   - 生のHTTPリクエストを行っている場合は、APIの全リクエストに `X-Timezone: (ユーザーのタイムゾーン)` ヘッダーを追加してください。
-   - `LBSClient` / `AsyncLBSClient` を用いている場合は、インスタンス化の際に `x_timezone="Asia/Tokyo"` のように引数として渡すようにコードを修正してください。
+1. **Identify Timezone and Add Header**:
+   - Determine the timezone environment (e.g., user settings or environment variables) for the user utilizing the service.
+   - If making raw HTTP requests, ensure that the `X-Timezone: (User's Timezone)` header is added to every API request.
+   - If using `LBSClient` / `AsyncLBSClient`, modify the initialization code to pass the timezone argument, such as `x_timezone="Asia/Tokyo"`.
 
-2. **タスク作成・更新時のペイロード修正**:
-   - 外部サービスからタスクを新規登録（または更新）する際、そのタスクが特定の現地時間基準で行われるのであれば、JSONペイロードに `"timezone": "(対象のタイムゾーン)"` を含めるように改修してください。
-   - 省略時はサーバー内で `UTC` として登録され、表示時に予期せぬズレが発生する可能性があります。
+2. **Modify Payload for Task Creation/Update**:
+   - When creating or updating a task from an external service, if the task is meant to be executed based on a specific local time, ensure the JSON payload includes `"timezone": "(Target Timezone)"`.
+   - If omitted, the server will register the task as `UTC`, which may cause unexpected time shifts when displayed to the user.
 
-3. **タイムゾーン表記の統一**:
-   - タイムゾーンの文字列は必ず **IANA Time Zone Database 形式** (`Asia/Tokyo`, `America/New_York` など) を使用してください。
+3. **Standardize Timezone Formatting**:
+   - Always use the **IANA Time Zone Database format** (e.g., `Asia/Tokyo`, `America/New_York`) for timezone strings.
