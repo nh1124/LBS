@@ -7,6 +7,19 @@ This guide explains how to access the LBS (Load Balancing System) API from exter
 By default, the API is accessible at:
 `http://localhost:8100/api/lbs`
 
+## Global Headers
+
+Many LBS endpoints (such as retrieving daily schedules or dashboards) depend on the client's local date boundaries. To ensure you receive data accurate to your location, you should provide your current timezone.
+
+- **Header**: `X-Timezone`
+- **Format**: IANA Timezone string (e.g., `Asia/Tokyo`, `America/New_York`, `UTC`)
+- **Default**: If omitted, defaults to `UTC`.
+- **Example `curl`**:
+  ```bash
+  curl -X GET "http://localhost:8100/api/lbs/schedule?start_date=2026-02-27&end_date=2026-03-01" \
+       -H "X-Timezone: Asia/Tokyo"
+  ```
+
 ---
 
 ## Authentication Methods
@@ -97,6 +110,7 @@ API_KEY = os.getenv("LBS_API_KEY")
 
 headers = {
     "X-API-KEY": API_KEY,
+    "X-Timezone": "UTC",  # Set to the agent's operating timezone
     "Content-Type": "application/json"
 }
 
@@ -112,6 +126,7 @@ def create_lbs_task(title, load, due_date):
         "due_date": due_date,
         "start_time": "09:00",
         "end_time": "10:00",
+        "timezone": "UTC",  # The absolute timezone this task takes place in
         "context": "automation"
     }
     response = requests.post(f"{BASE_URL}/tasks", headers=headers, json=payload)
