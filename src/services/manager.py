@@ -1,14 +1,16 @@
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
 from .repository import TaskRepository
 from .lbs_engine import LBSEngine
 from ..models.database import Task, TaskExecution, TaskStatus, TaskException
+from ..utils.timezone import get_local_today, shift_task_time
 
 class LBSManager:
-    def __init__(self, session: Session, user_id: str):
+    def __init__(self, session: Session, user_id: str, tz_name: str = "UTC"):
         self.session = session
         self.user_id = user_id
+        self.tz_name = tz_name
         self.repo = TaskRepository(session)
         config = self.repo.get_system_config(user_id)
         self.engine = LBSEngine(config)
@@ -20,8 +22,11 @@ class LBSManager:
             recent_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, end_date)
             if recent_entries:
                 latest_gen = max(e.generated_at for e in recent_entries)
+                # Ensure latest_gen is timezone aware before subtraction
+                if latest_gen.tzinfo is None:
+                    latest_gen = latest_gen.replace(tzinfo=timezone.utc)
                 # If cache was generated in the last 30 seconds, skip the refresh
-                if datetime.utcnow() - latest_gen < timedelta(seconds=30):
+                if datetime.now(timezone.utc) - latest_gen < timedelta(seconds=30):
                     return
         tasks = self.repo.get_active_tasks(self.user_id)
         executions = self.repo.get_executions_in_range(self.user_id, start_date, end_date)
@@ -74,12 +79,22 @@ class LBSManager:
             # Note: entry.calculated_load is the base load per task.
             # The fatigue adjustment is currently applied at the daily aggregation level in LBSEngine.
             schedule_map[d]["total_load"] += entry.calculated_load
+            
+            # Apply task timezone shift if defined differently from requested timezone
+            start_time = task.start_time
+            end_time = task.end_time
+            if task.timezone and task.timezone != self.tz_name:
+                _, start_time = shift_task_time(d, task.start_time, task.timezone, self.tz_name)
+                _, end_time = shift_task_time(d, task.end_time, task.timezone, self.tz_name)
+                
             schedule_map[d]["tasks"].append({
                 "task_id": task.task_id,
                 "task_name": task.task_name,
                 "context": task.context,
                 "status": entry.status,
-                "load": entry.calculated_load
+                "load": entry.calculated_load,
+                "start_time": start_time,
+                "end_time": end_time
             })
             
         # Post-process schedule to include fatigue-adjusted values
@@ -163,7 +178,7 @@ class LBSManager:
         # Convert DailyCondition dict to Dict[date, int] for cognitive_fatigue
         fatigue_map = {d: c.cognitive_fatigue for d, c in conditions.items()}
         
-        today = date.today()
+        today = get_local_today(self.tz_name)
         today_cond = conditions.get(today)
         today_fatigue = today_cond.cognitive_fatigue if today_cond else 0
         
@@ -189,7 +204,7 @@ class LBSManager:
 
     def get_trends(self, weeks: int, start_date: Optional[date] = None, status: List[TaskStatus] = [TaskStatus.TODO, TaskStatus.DONE]) -> List[Dict]:
         if not start_date:
-            end_date = date.today()
+            end_date = get_local_today(self.tz_name)
             start_date = end_date - timedelta(weeks=weeks)
         else:
             end_date = start_date + timedelta(weeks=weeks)
@@ -223,8 +238,8 @@ class LBSManager:
         self.session.refresh(task)
         
         # Trigger refresh
-        expand_start = task.start_date or date.today()
-        expand_end = task.end_date or (date.today() + timedelta(days=90))
+        expand_start = task.start_date or get_local_today(self.tz_name)
+        expand_end = task.end_date or (get_local_today(self.tz_name) + timedelta(days=90))
         self.refresh_schedule(expand_start, expand_end, force=True)
         return task
 
@@ -257,12 +272,12 @@ class LBSManager:
             setattr(task, field, value)
         
         from datetime import datetime
-        task.updated_at = datetime.utcnow()
+        task.updated_at = datetime.now(timezone.utc)
         self.session.commit()
         self.session.refresh(task)
         
-        expand_start = task.start_date or date.today()
-        expand_end = task.end_date or (date.today() + timedelta(days=90))
+        expand_start = task.start_date or get_local_today(self.tz_name)
+        expand_end = task.end_date or (get_local_today(self.tz_name) + timedelta(days=90))
         self.refresh_schedule(expand_start, expand_end, force=True)
         return task
 
@@ -276,7 +291,8 @@ class LBSManager:
         
         self.repo.delete_task(task)
         self.session.commit()
-        self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
+        today = get_local_today(self.tz_name)
+        self.refresh_schedule(today, today + timedelta(days=90), force=True)
         return True
 
     def bulk_delete_tasks(self, task_ids: List[str], force_override: bool = False) -> int:
@@ -288,7 +304,8 @@ class LBSManager:
         count = self.repo.bulk_delete_tasks(self.user_id, task_ids)
         if count > 0:
             self.session.commit()
-            self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
+            today = get_local_today(self.tz_name)
+            self.refresh_schedule(today, today + timedelta(days=90), force=True)
         return count
 
     def bulk_update_active(self, task_ids: List[str], active: bool, force_override: bool = False) -> int:
@@ -301,9 +318,10 @@ class LBSManager:
         if updated:
             from datetime import datetime
             for t in updated:
-                t.updated_at = datetime.utcnow()
+                t.updated_at = datetime.now(timezone.utc)
             self.session.commit()
-            self.refresh_schedule(date.today(), date.today() + timedelta(days=90), force=True)
+            today = get_local_today(self.tz_name)
+            self.refresh_schedule(today, today + timedelta(days=90), force=True)
         return len(updated)
 
     def get_task_history(self, task_id: str, start_date: date, end_date: date) -> List[TaskExecution]:

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Integer, Float, Boolean, Date, Time, DateTime, Text, ForeignKey, create_engine, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.orm import relationship, sessionmaker
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 from .user import Base, User, APIKey
 from .external_identity import ExternalIdentity
@@ -20,7 +20,7 @@ class SystemConfig(Base):
     key = Column(String, nullable=False)
     value = Column(String, nullable=False)
     description = Column(Text)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class Task(Base):
     """Master task definitions with user ownership"""
@@ -52,9 +52,10 @@ class Task(Base):
     end_time = Column(Time, nullable=True)
     notes = Column(Text)
     external_sync_id = Column(String, nullable=True)
+    timezone = Column(String, default='UTC')
     is_locked = Column(Boolean, default=False)  # Marker for external systems to prevent modifications
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class TaskException(Base):
     """Exceptions to task rules"""
@@ -70,7 +71,7 @@ class TaskException(Base):
     end_time = Column(Time, nullable=True)    # Override end time for this date
     notes = Column(Text)
     is_locked = Column(Boolean, default=False)  # Lock this exception from modifications
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class TaskExecution(Base):
     """History of task executions and their outcomes"""
@@ -83,7 +84,7 @@ class TaskExecution(Base):
     status = Column(SAEnum(TaskStatus, native_enum=False), default=TaskStatus.DONE) # e.g., "done", "skipped"
     progress = Column(Integer, default=100)
     actual_time = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('user_id', 'task_id', 'target_date', name='uq_task_execution_user_date'),
@@ -100,7 +101,7 @@ class LBSDailyCache(Base):
     calculated_load = Column(Float, nullable=False)
     status = Column(SAEnum(TaskStatus, native_enum=False), default=TaskStatus.TODO)
     is_overflow = Column(Boolean, default=False)
-    generated_at = Column(DateTime, default=datetime.utcnow)
+    generated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('user_id', 'task_id', 'target_date', name='_user_task_date_uc'),
@@ -115,7 +116,7 @@ class DailyCondition(Base):
     cognitive_fatigue = Column(Integer, default=0) # 0-5
     physical_fatigue = Column(Integer, default=0)  # 0-5
     note = Column(Text, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 # DB setup
 # Handle SQLite specific arguments

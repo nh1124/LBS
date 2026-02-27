@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header
 from sqlalchemy.orm import Session
 from datetime import date, timedelta, datetime
 from typing import List, Optional
@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from ..models.database import get_db, Task, TaskException, TaskStatus, TaskExecution
 from ..services.manager import LBSManager
+from ..utils.timezone import get_local_today
 from ..auth import require_user_identity, Identity
 from .schemas import (
     TaskCreate, 
@@ -38,22 +39,24 @@ def get_schedule(
     start_date: date,
     end_date: date,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
     """Unified schedule API via Manager"""
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     return manager.get_schedule(start_date, end_date)
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
     start_date: Optional[date] = None,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
     if not start_date:
-        start_date = date.today() - timedelta(days=date.today().weekday())
+        start_date = get_local_today(x_timezone) - timedelta(days=get_local_today(x_timezone).weekday())
     
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     dash = manager.get_dashboard(start_date)
     return {
         **dash,
@@ -64,9 +67,10 @@ def get_dashboard(
 def create_task(
     task_in: TaskCreate,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     task_id = f"T-{uuid.uuid4().hex[:8].upper()}"
     try:
         db_task = Task(
@@ -83,18 +87,20 @@ def list_tasks(
     context: Optional[str] = None,
     active: Optional[bool] = Query(None),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     return manager.list_tasks(context=context, active=active)
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task_detail(
     task_id: str,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     task = manager.repo.get_task(identity.user_id, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -106,9 +112,10 @@ def get_task_history(
     start_date: date,
     end_date: date,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     task = manager.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -120,13 +127,14 @@ def get_resolved_task(
     task_id: str,
     target_date: date,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
     """
     Get a task with any exception overrides applied for a specific date.
     Returns the task with resolved times, load, and exception details.
     """
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     resolved = manager.get_resolved_task(task_id, target_date)
     if not resolved:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -138,9 +146,10 @@ def update_task(
     task_in: TaskUpdate,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     update_data = task_in.model_dump(exclude_unset=True)
     try:
         updated_task = manager.update_task(task_id, update_data, force_override=force_override)
@@ -154,18 +163,19 @@ def update_task(
 def upload_tasks_csv(
     file: UploadFile = File(...),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
     
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     contents = file.file.read().decode('utf-8')
     reader = csv.DictReader(io.StringIO(contents))
     
     tasks_to_create = []
-    min_start = date.today()
-    max_end = date.today() + timedelta(days=90)
+    min_start = get_local_today(x_timezone)
+    max_end = get_local_today(x_timezone) + timedelta(days=90)
 
     for row in reader:
         try:
@@ -199,7 +209,8 @@ def upload_tasks_csv(
                 start_date=date.fromisoformat(row['start_date']) if row.get('start_date') and row['start_date'].strip() else None,
                 end_date=date.fromisoformat(row['end_date']) if row.get('end_date') and row['end_date'].strip() else None,
                 notes=row.get('notes'),
-                external_sync_id=row.get('external_sync_id')
+                external_sync_id=row.get('external_sync_id'),
+                timezone=row.get('timezone', x_timezone)
             )
             if db_task.start_date and db_task.start_date < min_start: min_start = db_task.start_date
             if db_task.end_date and db_task.end_date > max_end: max_end = db_task.end_date
@@ -218,9 +229,10 @@ def delete_task(
     task_id: str,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     try:
         if not manager.delete_task(task_id, force_override=force_override):
             raise HTTPException(status_code=404, detail="Task not found")
@@ -233,9 +245,10 @@ def bulk_delete_tasks(
     bulk_in: TaskBulkDelete,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     try:
         count = manager.bulk_delete_tasks(bulk_in.task_ids, force_override=force_override)
         if count == 0:
@@ -249,9 +262,10 @@ def bulk_update_active(
     bulk_in: TaskBulkActiveUpdate,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     try:
         count = manager.bulk_update_active(bulk_in.task_ids, bulk_in.active, force_override=force_override)
         if count == 0:
@@ -265,9 +279,10 @@ def handle_task_completion(
     task_id: str,
     req: TaskExecutionRequest,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     task = manager.repo.get_task(identity.user_id, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -279,9 +294,10 @@ def create_exception(
     exc: ExceptionCreate,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     task = manager.get_task(exc.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -298,18 +314,20 @@ def list_exceptions(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     return manager.list_exceptions(task_id, start_date, end_date)
 
 @router.get("/exceptions/{exception_id}", response_model=ExceptionResponse)
 def get_exception(
     exception_id: int,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     exc = manager.get_exception(exception_id)
     if not exc:
         raise HTTPException(status_code=404, detail="Exception not found")
@@ -321,9 +339,10 @@ def update_exception(
     exc_update: ExceptionUpdate,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     try:
         updated = manager.update_exception(exception_id, exc_update.model_dump(exclude_unset=True), force_override=force_override)
         if not updated:
@@ -337,9 +356,10 @@ def delete_exception(
     exception_id: int,
     force_override: bool = Query(False),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     try:
         if not manager.delete_exception(exception_id, force_override=force_override):
             raise HTTPException(status_code=404, detail="Exception not found")
@@ -352,9 +372,10 @@ def calculate_load(
     target_date: date,
     status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     # Ensure cache is fresh for the day
     manager.refresh_schedule(target_date, target_date)
     cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, target_date, target_date)
@@ -371,9 +392,10 @@ def expand_tasks(
     start_date: date,
     end_date: date,
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     manager.refresh_schedule(start_date, end_date)
     return {"message": "Expansion complete"}
 
@@ -383,9 +405,10 @@ def get_heatmap(
     end: date,
     status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     manager.refresh_schedule(start, end)
     
     cache_entries = manager.repo.get_daily_cache_in_range(identity.user_id, start, end)
@@ -418,9 +441,10 @@ def get_trends(
     start_date: Optional[date] = None,
     status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     
     return {"trends": manager.get_trends(weeks, start_date, status)}
 
@@ -430,8 +454,9 @@ def get_context_distribution(
     end: date,
     status: List[TaskStatus] = Query(default=[TaskStatus.TODO, TaskStatus.DONE]),
     identity: Identity = Depends(require_user_identity),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_timezone: str = Header("UTC")
 ):
-    manager = LBSManager(db, identity.user_id)
+    manager = LBSManager(db, identity.user_id, tz_name=x_timezone)
     
     return {"distribution": manager.get_context_distribution(start, end, status)}

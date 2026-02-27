@@ -31,7 +31,7 @@ from ..auth import (
     create_access_token
 )
 from ..config import settings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import Header
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -171,7 +171,7 @@ async def provision_external_client_key(
     # Rotate: Revoke old if exists
     if existing_key:
         existing_key.is_active = False
-        existing_key.revoked_at = datetime.utcnow()
+        existing_key.revoked_at = datetime.now(timezone.utc)
         
     # Create new
     plain_key = generate_api_key()
@@ -200,7 +200,7 @@ async def create_api_key(
     plain_key = generate_api_key()
     expires_at = None
     if req.expires_in_days:
-        expires_at = datetime.utcnow() + timedelta(days=req.expires_in_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=req.expires_in_days)
         
     new_key = APIKey(
         user_id=identity.user_id,
@@ -246,7 +246,7 @@ async def revoke_api_key(
         raise HTTPException(status_code=404, detail="API Key not found")
         
     key.is_active = False
-    key.revoked_at = datetime.utcnow()
+    key.revoked_at = datetime.now(timezone.utc)
     db.commit()
     
     return {"message": "API key revoked"}

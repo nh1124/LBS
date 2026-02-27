@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 
 from sqlalchemy.orm import Session
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import logging
 
 from ..models.database import get_db, DailyCondition
@@ -63,7 +63,7 @@ def get_condition(
             cognitive_fatigue=0,
             physical_fatigue=0,
             note=None,
-            updated_at=datetime.utcnow() 
+            updated_at=datetime.now(timezone.utc) 
         )
     return cond
 

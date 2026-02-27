@@ -1,3 +1,4 @@
+import { getLocalISODateString } from '../utils/date';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
@@ -23,7 +24,7 @@ const Dashboard = ({ token, apiKey }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [trendStartDate, setTrendStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [trendStartDate, setTrendStartDate] = useState(getLocalISODateString());
 
     const api = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '/api/lbs',
@@ -187,7 +188,7 @@ const Dashboard = ({ token, apiKey }) => {
                                 onClick={() => {
                                     const d = new Date(trendStartDate);
                                     d.setDate(d.getDate() - 28);
-                                    setTrendStartDate(d.toISOString().split('T')[0]);
+                                    setTrendStartDate(getLocalISODateString(d));
                                 }}
                                 className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
                             >
@@ -200,7 +201,7 @@ const Dashboard = ({ token, apiKey }) => {
                                 onClick={() => {
                                     const d = new Date(trendStartDate);
                                     d.setDate(d.getDate() + 28);
-                                    setTrendStartDate(d.toISOString().split('T')[0]);
+                                    setTrendStartDate(getLocalISODateString(d));
                                 }}
                                 className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition-all text-xs"
                             >

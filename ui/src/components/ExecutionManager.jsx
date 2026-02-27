@@ -1,3 +1,4 @@
+import { getLocalISODateString } from '../utils/date';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react';
 
 const ExecutionManager = ({ token, apiKey }) => {
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedDate, setSelectedDate] = useState(getLocalISODateString());
     const [dayData, setDayData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -184,7 +185,7 @@ const ExecutionManager = ({ token, apiKey }) => {
     const changeDate = (offset) => {
         const d = new Date(selectedDate);
         d.setDate(d.getDate() + offset);
-        setSelectedDate(d.toISOString().split('T')[0]);
+        setSelectedDate(getLocalISODateString(d));
     };
 
     const getLevelColor = (level) => {

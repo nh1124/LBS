@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status, Header
@@ -182,12 +182,12 @@ async def resolve_identity(
         
         if api_key_record:
             # Check for expiration
-            if api_key_record.expires_at and api_key_record.expires_at < datetime.utcnow():
+            if api_key_record.expires_at and api_key_record.expires_at < datetime.now(timezone.utc):
                 logger.warning(f"Expired API Key attempt for user {api_key_record.user_id}")
                 raise HTTPException(status_code=401, detail="API Key expired")
 
             # Update last_used_at
-            api_key_record.last_used_at = datetime.utcnow()
+            api_key_record.last_used_at = datetime.now(timezone.utc)
             db.commit()
             
             logger.debug(f"Authenticated with API Key ({api_key_record.client_id}) for user {api_key_record.user_id}")
@@ -261,16 +261,16 @@ async def require_user_identity(identity: Identity = Depends(resolve_identity)) 
 def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None):
     """Issues an LBS token with strict claims: iss="lbs", aud="lbs-ui", sub=<user_id>"""
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode = {
         "sub": str(user_id),
         "iss": "lbs",
         "aud": "lbs-ui",
         "exp": expire,
-        "iat": datetime.utcnow()
+        "iat": datetime.now(timezone.utc)
     }
     
     encoded_jwt = jwt.encode(to_encode, settings.LBS_SECRET_KEY, algorithm=settings.ALGORITHM)

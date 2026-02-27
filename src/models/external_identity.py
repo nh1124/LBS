@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from .user import Base
 
 class ExternalIdentity(Base):
@@ -11,7 +11,7 @@ class ExternalIdentity(Base):
     user_id = Column(String, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     issuer = Column(String, nullable=False)
     subject = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User")
 

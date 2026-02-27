@@ -1,3 +1,4 @@
+import { getLocalISODateString } from '../utils/date';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Info, LayoutList, CalendarRange } from 'lucide-react';
@@ -27,8 +28,8 @@ const LBSCalendar = ({ token, apiKey }) => {
         try {
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
-            const start = new Date(year, month, 1).toISOString().split('T')[0];
-            const end = new Date(year, month + 1, 0).toISOString().split('T')[0];
+            const start = getLocalISODateString(new Date(year, month, 1));
+            const end = getLocalISODateString(new Date(year, month + 1, 0));
 
             const statusParams = `status=todo&status=skipped${includeCompleted ? '&status=done' : ''}`;
             const resp = await api.get(`/heatmap?start=${start}&end=${end}&${statusParams}`);
@@ -57,8 +58,8 @@ const LBSCalendar = ({ token, apiKey }) => {
             const end = new Date(start);
             end.setDate(start.getDate() + 6);
 
-            const sStr = start.toISOString().split('T')[0];
-            const eStr = end.toISOString().split('T')[0];
+            const sStr = getLocalISODateString(start);
+            const eStr = getLocalISODateString(end);
 
             setWeekStartDate(start);
             const resp = await api.get(`/schedule?start_date=${sStr}&end_date=${eStr}`);
@@ -171,9 +172,9 @@ const LBSCalendar = ({ token, apiKey }) => {
         for (let d = 1; d <= totalDays; d++) {
             const dateObj = new Date(year, month, d);
             // Adjust for timezone offset to get YYYY-MM-DD
-            const dateStr = new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            const dateStr = getLocalISODateString(new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000)));
             const dayData = heatmapData[dateStr];
-            const isToday = new Date().toISOString().split('T')[0] === dateStr;
+            const isToday = getLocalISODateString() === dateStr;
 
             days.push(
                 <div

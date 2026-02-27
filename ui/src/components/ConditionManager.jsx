@@ -1,3 +1,4 @@
+import { getLocalISODateString } from '../utils/date';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Save, Trash2, Calendar, AlertCircle, Thermometer, Brain, Activity } from 'lucide-react';
@@ -6,7 +7,7 @@ const ConditionManager = ({ token }) => {
     const [conditions, setConditions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        date: new Date().toISOString().split('T')[0],
+        date: getLocalISODateString(),
         cognitive_fatigue: 0,
         physical_fatigue: 0,
         note: ''
@@ -29,8 +30,8 @@ const ConditionManager = ({ token }) => {
 
             const resp = await axios.get(`${apiBase}/conditions`, {
                 params: {
-                    start_date: start.toISOString().split('T')[0],
-                    end_date: end.toISOString().split('T')[0]
+                    start_date: getLocalISODateString(start),
+                    end_date: getLocalISODateString(end)
                 },
                 headers
             });

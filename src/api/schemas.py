@@ -41,6 +41,7 @@ class TaskBase(BaseModel):
     notes: Optional[str] = None
     external_sync_id: Optional[str] = None
     is_locked: Optional[bool] = False
+    timezone: Optional[str] = 'UTC'
 
 class TaskCreate(TaskBase):
     pass
@@ -71,6 +72,7 @@ class TaskUpdate(BaseModel):
     notes: Optional[str] = None
     external_sync_id: Optional[str] = None
     is_locked: Optional[bool] = None
+    timezone: Optional[str] = None
 
 class TaskBulkDelete(BaseModel):
     task_ids: List[str]
@@ -105,6 +107,7 @@ class ScheduleTask(BaseModel):
     has_exception: bool = False
     exception_type: Optional[str] = None
     is_locked: bool = False
+    timezone: str = 'UTC'
     
     class Config: from_attributes = True
 

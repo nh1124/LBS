@@ -1,3 +1,4 @@
+import { getLocalISODateString, getTimezoneName } from '../utils/date';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
@@ -94,7 +95,8 @@ const TaskManager = ({ token, apiKey }) => {
     const [formData, setFormData] = useState({
         task_name: '', context: 'work', base_load_score: 2.0, rule_type: 'WEEKLY',
         mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false,
-        start_date: '', end_date: '', start_time: '', end_time: '', notes: '', is_locked: false
+        start_date: '', end_date: '', start_time: '', end_time: '', notes: '', is_locked: false,
+        timezone: getTimezoneName()
     });
 
     const api = axios.create({
@@ -136,7 +138,7 @@ const TaskManager = ({ token, apiKey }) => {
 
     const handleEdit = (task) => {
         setEditingTask(task);
-        setFormData({ ...task });
+        setFormData({ timezone: getTimezoneName(), ...task });
         setIsModalOpen(true);
     };
 
@@ -214,7 +216,7 @@ const TaskManager = ({ token, apiKey }) => {
             "task_name", "context", "base_load_score", "rule_type", "active", "status",
             "mon", "tue", "wed", "thu", "fri", "sat", "sun",
             "interval_days", "anchor_date", "month_day", "nth_in_month", "weekday_mon1",
-            "start_date", "end_date", "start_time", "end_time", "due_date", "notes"
+            "start_date", "end_date", "start_time", "end_time", "due_date", "notes", "timezone"
         ];
         const csvContent = [headers.join(','), ...tasksToExport.map(t => headers.map(h => {
             const val = t[h];
@@ -230,7 +232,7 @@ const TaskManager = ({ token, apiKey }) => {
         const link = document.createElement("a");
         link.setAttribute("href", url);
         const suffix = all ? 'all' : 'selected';
-        link.setAttribute("download", `lbs_tasks_${suffix}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute("download", `lbs_tasks_${suffix}_${getLocalISODateString()}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -396,6 +398,15 @@ const TaskManager = ({ token, apiKey }) => {
                                 />
                             </div>
                             <div className="">
+                                <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Timezone</label>
+                                <input
+                                    className="w-full"
+                                    placeholder="e.g. Asia/Tokyo"
+                                    value={formData.timezone || ''}
+                                    onChange={e => setFormData({ ...formData, timezone: e.target.value })}
+                                />
+                            </div>
+                            <div className="col-span-2">
                                 <label className="block text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Base Load Score (0-10)</label>
                                 <input
                                     type="number" step="0.5" min="0" max="10" required className="w-full"
