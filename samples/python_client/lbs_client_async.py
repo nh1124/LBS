@@ -22,6 +22,7 @@ class AsyncLBSClient:
         api_key: Optional[str] = None, 
         token: Optional[str] = None,
         external_jwt: Optional[str] = None,
+        x_timezone: Optional[str] = "UTC",
         timeout: float = 30.0
     ):
         """
@@ -37,6 +38,7 @@ class AsyncLBSClient:
         self.api_key = api_key or os.getenv("LBS_API_KEY")
         self.token = token
         self.external_jwt = external_jwt
+        self.x_timezone = x_timezone
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
 
@@ -54,6 +56,8 @@ class AsyncLBSClient:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
+        if self.x_timezone:
+            headers["X-Timezone"] = self.x_timezone
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         elif self.token:

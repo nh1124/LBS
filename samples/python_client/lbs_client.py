@@ -26,7 +26,8 @@ class LBSClient:
         base_url: str = "http://localhost:8100/api/lbs", 
         api_key: Optional[str] = None, 
         token: Optional[str] = None,
-        external_jwt: Optional[str] = None
+        external_jwt: Optional[str] = None,
+        x_timezone: Optional[str] = "UTC"
     ):
         """
         Initialize the LBS Client.
@@ -40,6 +41,7 @@ class LBSClient:
         self.api_key = api_key or os.getenv("LBS_API_KEY")
         self.token = token
         self.external_jwt = external_jwt
+        self.x_timezone = x_timezone
         self._session = requests.Session()
 
     def _get_headers(self) -> Dict[str, str]:
@@ -47,6 +49,8 @@ class LBSClient:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
+        if self.x_timezone:
+            headers["X-Timezone"] = self.x_timezone
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         elif self.token:
