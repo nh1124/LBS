@@ -137,6 +137,8 @@ curl -X POST -H "X-API-KEY: your-key" -H "Content-Type: application/json" \
 | `LBS_API_KEY_PEPPER` | `lbs-default...` | Pepper used for API key hashing. **Change in production!** |
 | `LBS_BIND_HOST` | `127.0.0.1` | Host to bind uvicorn. |
 | `BACKEND_PORT` | `8100` | Port for the backend service. |
+| `LBS_REFRESH_DEBOUNCE_ENABLED` | `true` | If `true`, enables debouncing of schedule recalculations. |
+| `LBS_REFRESH_DEBOUNCE_SECONDS` | `3` | Time window (in seconds) to skip recalculation if already generated. |
 
 ## Development
 

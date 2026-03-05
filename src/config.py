@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     DEFAULT_BETA: float = 1.2
     DEFAULT_CAP: float = 8.0
     DEFAULT_SWITCH_COST: float = 0.5
+    LBS_REFRESH_DEBOUNCE_ENABLED: bool = True
+    LBS_REFRESH_DEBOUNCE_SECONDS: int = 1
 
     model_config = {
         "env_file": ".env",

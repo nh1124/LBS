@@ -18,16 +18,21 @@ class LBSManager:
     def refresh_schedule(self, start_date: date, end_date: date, force: bool = False):
         """Refresh the daily cache for the given range, with debouncing"""
         if not force:
-            # Check if we have recent cache entries to avoid redundant refreshes in high-concurrency reloads
-            recent_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, end_date)
-            if recent_entries:
-                latest_gen = max(e.generated_at for e in recent_entries)
-                # Ensure latest_gen is timezone aware before subtraction
-                if latest_gen.tzinfo is None:
-                    latest_gen = latest_gen.replace(tzinfo=timezone.utc)
-                # If cache was generated in the last 30 seconds, skip the refresh
-                if datetime.now(timezone.utc) - latest_gen < timedelta(seconds=30):
-                    return
+            from ..config import settings
+            
+            debounce_seconds = max(0, settings.LBS_REFRESH_DEBOUNCE_SECONDS)
+            if settings.LBS_REFRESH_DEBOUNCE_ENABLED and debounce_seconds > 0:
+                # Check if we have recent cache entries to avoid redundant refreshes in high-concurrency reloads
+                recent_entries = self.repo.get_daily_cache_in_range(self.user_id, start_date, end_date)
+                if recent_entries:
+                    latest_gen = max(e.generated_at for e in recent_entries)
+                    # Ensure latest_gen is timezone aware before subtraction
+                    if latest_gen.tzinfo is None:
+                        latest_gen = latest_gen.replace(tzinfo=timezone.utc)
+                    # If cache was generated in the last N seconds, skip the refresh
+                    if datetime.now(timezone.utc) - latest_gen < timedelta(seconds=debounce_seconds):
+                        return
+                        
         tasks = self.repo.get_active_tasks(self.user_id)
         executions = self.repo.get_executions_in_range(self.user_id, start_date, end_date)
         exceptions = self.repo.get_exceptions_in_range(self.user_id, start_date, end_date)
